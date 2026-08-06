@@ -1,0 +1,110 @@
+name: Build and Push Docker Image
+
+# Previously this pushed to `pyd4vinci/scrapling` on Docker Hub and
+# `ghcr.io/<owner>/scrapling` — upstream Scrapling's images — on every PR merged
+# into main, and labelled them as upstream's project. This fork publishes
+# `scrapling-tool` to GHCR only, under the repository that builds it.
+#
+# Pushing requires the repository variable DOCKER_PUBLISH_ENABLED == 'true'.
+# Otherwise the image is still built (so breakage is caught) but not pushed.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'pyproject.toml'
+      - '.dockerignore'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: true
+        default: 'latest'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Decide whether to push
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ vars.DOCKER_PUBLISH_ENABLED }}" = "true" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: steps.mode.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+          labels: |
+            org.opencontainers.image.title=scrapling-tool
+            org.opencontainers.image.description=Hardened Scrapling-powered CLI/MCP/dashboard for social-media and generic site scraping
+            org.opencontainers.image.licenses=BSD-3-Clause
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # arm64 emulation makes the Playwright/browser layer take ~1h; the
+          # published image is amd64 only.
+          platforms: linux/amd64
+          push: ${{ steps.mode.outputs.push == 'true' }}
+          load: ${{ steps.mode.outputs.push != 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the image
+        if: steps.mode.outputs.push != 'true'
+        run: |
+          IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker run --rm "$IMAGE" --help
+
+      - name: Image digest
+        if: steps.mode.outputs.push == 'true'
+        run: echo "${{ steps.build.outputs.digest }}"

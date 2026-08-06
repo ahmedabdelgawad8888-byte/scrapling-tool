@@ -1,0 +1,134 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+# Thin wrapper around setuptools that stages the root index.html dashboard into
+# the package before building. See _build/backend.py.
+build-backend = "backend"
+backend-path = ["_build"]
+
+[project]
+name = "scrapling-tool"
+version = "1.3.0"
+description = "Hardened Scrapling-powered CLI/MCP for social-media and generic site scraping"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+requires-python = ">=3.10,<3.15"
+authors = [
+    { name = "Essmats" },
+]
+keywords = ["scrapling", "scraper", "cli", "mcp", "playwright", "stealth"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "scrapling[all]>=0.4.11,<0.5",
+    "click>=8.0,<9",
+    "rich>=13.0,<16",
+    "mcp>=1.0,<2",
+    "pydantic>=2.0,<3",
+    "markdownify>=0.11,<2",
+    "fastapi>=0.110,<1",
+    "uvicorn>=0.30,<1",
+    "httpx>=0.27,<1",
+    "python-multipart>=0.0.9,<1",
+    "platformdirs>=4.0,<5",
+]
+
+[project.optional-dependencies]
+providers = [
+    "scrapingbee>=2.0,<3",
+]
+all = ["scrapling-tool[providers]"]
+
+[project.urls]
+"Homepage" = "https://github.com/D4Vinci/Scrapling"
+"Bug Tracker" = "https://github.com/D4Vinci/Scrapling/issues"
+
+[project.scripts]
+scrape = "ultra_scraper:cli"
+scraper-mcp = "scraper_mcp:main"
+scraper-serve = "ultra_scraper:serve_dashboard"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.23,<1",
+    "pytest-cov>=5.0,<7",
+    "ruff>=0.6,<1",
+    "mypy>=1.10,<2",
+    "build>=1.2,<2",
+    "twine>=5.0,<7",
+    "types-requests",
+]
+
+[tool.setuptools]
+py-modules = ["ultra_scraper", "scraper_mcp", "bulk_scraper"]
+packages = [
+    "scrapling_tool",
+    "scrapling_tool.providers",
+    "scrapling_tool.parsers",
+    "scrapling_tool.hardening",
+    "scrapling_tool.web",
+    "scrapling_tool.web.static",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"scrapling_tool.web" = ["static/*.html", "static/*.js", "static/*.css"]
+
+[tool.setuptools.package-dir]
+"scrapling_tool" = "src/scrapling_tool"
+
+[tool.ruff]
+# NOTE: this is the single ruff config for the project. A leftover upstream
+# `ruff.toml` used to sit next to it and silently win (ruff prefers ruff.toml
+# over pyproject.toml), so these settings were never actually applied.
+line-length = 110
+target-version = "py310"
+extend-exclude = [
+    # Build artifacts.
+    "build",
+    "dist",
+    # Upstream Scrapling material kept for reference; not part of this package.
+    "agent-skill",
+    "tests/ai",
+    "tests/cli",
+    "tests/core",
+    "tests/fetchers",
+    "tests/parser",
+    "tests/spiders",
+    # Unwired legacy modules (not imported by ultra_scraper or scrapling_tool).
+    "config.py",
+    "ultra_scraper_modules",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["E501", "B008", "E402"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-p no:warnings --ignore=setup.py"
+testpaths = ["tests/scrapling_tool"]
+markers = [
+    "asyncio: marks tests as async",
+    "live: requires network access",
+]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true

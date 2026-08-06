@@ -1,0 +1,126 @@
+name: Code Quality
+
+# Advisory static analysis. `ci.yml` is the gate that must stay green; this
+# workflow reports issues without blocking, so new tools can be introduced
+# without freezing the build.
+#
+# It used to point every tool at `scrapling/` — the vendored copy of upstream
+# Scrapling that was removed in favour of the `scrapling[all]` dependency. With
+# that directory gone every step failed and the summary step exited 1, so this
+# workflow was permanently red.
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'docs/**'
+      - 'images/**'
+      - 'agent-skill/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'docs/**'
+      - 'images/**'
+      - 'agent-skill/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # This fork's own code. Excludes for upstream test suites and unwired legacy
+  # modules live in [tool.ruff] in pyproject.toml.
+  TARGETS: src ultra_scraper.py scraper_mcp.py bulk_scraper.py launcher.py cleanup.py
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "bandit[toml]" ruff vermin mypy
+          pip install -e ".[all]"
+          pip install types-requests
+
+      - name: Run Bandit (Security Linter)
+        id: bandit
+        continue-on-error: true
+        run: |
+          echo "::group::Bandit - Security Linter"
+          bandit -r -c .bandit.yml $TARGETS -f json -o bandit-report.json || true
+          bandit -r -c .bandit.yml $TARGETS
+          echo "::endgroup::"
+
+      - name: Run Ruff Linter
+        id: ruff-lint
+        continue-on-error: true
+        run: |
+          echo "::group::Ruff - Linter"
+          ruff check . --output-format=github
+          echo "::endgroup::"
+
+      - name: Run Vermin (Python 3.10+ Compatibility)
+        id: vermin
+        continue-on-error: true
+        run: |
+          echo "::group::Vermin - Python 3.10+ Compatibility Check"
+          vermin -t=3.10- --violations --eval-annotations --no-tips $TARGETS
+          echo "::endgroup::"
+
+      - name: Run Mypy (Static Type Checker)
+        id: mypy
+        continue-on-error: true
+        run: |
+          echo "::group::Mypy - Static Type Checker"
+          mypy src
+          echo "::endgroup::"
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "# Code Quality Check Results"
+            echo ""
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Bandit (Security) | ${{ steps.bandit.outcome == 'success' && '✅ Passed' || '⚠️ Findings' }} |"
+            echo "| Ruff Linter | ${{ steps.ruff-lint.outcome == 'success' && '✅ Passed' || '⚠️ Findings' }} |"
+            echo "| Vermin (Python 3.10+) | ${{ steps.vermin.outcome == 'success' && '✅ Passed' || '⚠️ Findings' }} |"
+            echo "| Mypy (Type Checker) | ${{ steps.mypy.outcome == 'success' && '✅ Passed' || '⚠️ Findings' }} |"
+            echo ""
+            echo "These checks are advisory. \`ci.yml\` is the blocking gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Bandit report
+        if: always() && steps.bandit.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+          retention-days: 30
+          if-no-files-found: ignore

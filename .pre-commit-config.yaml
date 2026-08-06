@@ -1,0 +1,48 @@
+# Local hooks. Run with `pre-commit run --all-files`.
+#
+# `ruff-format` is deliberately not enabled: this codebase is not
+# ruff-formatted (31 of 37 files would be rewritten), so turning it on would
+# bury real changes under a whole-repo reformat. Add it as its own commit if
+# you want it.
+#
+# File selection for ruff comes from [tool.ruff] in pyproject.toml. bandit and
+# vermin need their own excludes, hence the shared regex below.
+
+exclude: |
+  (?x)^(
+      build/|
+      dist/|
+      agent-skill/|
+      docs/|
+      tests/(ai|cli|core|fetchers|parser|spiders)/|
+      ultra_scraper_modules/|
+      config\.py
+  )
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.0
+    hooks:
+      - id: bandit
+        args: [-c, .bandit.yml]
+
+  - repo: https://github.com/netromdk/vermin
+    rev: v1.7.0
+    hooks:
+      - id: vermin
+        args: ['-t=3.10-', '--violations', '--eval-annotations', '--no-tips']
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

@@ -1,0 +1,19 @@
+# Render Blueprint — one-click deploy for Scrapling Tool
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: scrapling-tool
+    env: docker
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: ./
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: scrapling-data
+      mountPath: /app/data
+      sizeGB: 1

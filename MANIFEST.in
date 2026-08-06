@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+
+# The dashboard. _build/backend.py stages this into the package at build time
+# so the wheel can serve it; keep it in the sdist too.
+include index.html
+recursive-include src/scrapling_tool/web/static *.html *.css *.js
+
+# The in-tree build backend must ship with the sdist or it cannot be rebuilt.
+recursive-include _build *.py

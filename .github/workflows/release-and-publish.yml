@@ -1,0 +1,129 @@
+name: Create Release and Publish to PyPI
+
+# Tag-driven release for **scrapling-tool**.
+#
+# Previously this ran on every PR merged into main: it required the PR title to
+# start with "v" and exited 1 otherwise (so ordinary merges turned the build
+# red), then published to PyPI unconditionally under an environment pointing at
+# https://pypi.org/p/scrapling — upstream Scrapling's project, owned by Karim
+# Shoair / D4Vinci. See CHANGELOG.md: do not publish this fork under that name.
+#
+# To cut a release:
+#   1. bump `version` in pyproject.toml and update CHANGELOG.md
+#   2. git tag v1.4.0 && git push origin v1.4.0
+# Uploading to PyPI additionally requires the repository variable
+# PUBLISH_ENABLED == 'true' and PyPI trusted publishing configured for
+# `scrapling-tool`. Without it the workflow still builds and creates the
+# GitHub release, and simply skips the upload.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v1.4.0)'
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build + verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          PROJECT_VERSION=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$TAG" != "v$PROJECT_VERSION" ]; then
+            echo "::error::tag $TAG does not match pyproject version $PROJECT_VERSION"
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Verify the dashboard is packaged
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as z:
+              info = z.getinfo("scrapling_tool/web/static/index.html")
+          assert info.file_size > 100_000, f"dashboard truncated: {info.file_size} bytes"
+          print(f"dashboard packaged: {info.file_size} bytes")
+          PY
+
+      - name: Twine check
+        run: twine check dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+
+  release:
+    name: GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
+          generate_release_notes: true
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+
+  publish:
+    name: publish to PyPI
+    needs: [build, release]
+    if: vars.PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/scrapling-tool
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    # 3.14 is declared supported but depends on upstream wheels landing, so it
+    # reports without blocking the build.
+    continue-on-error: ${{ matrix.python-version == '3.14' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --group dev --python ${{ matrix.python-version }}
+
+      # Lints the whole repo. Exclusions (upstream test suites, unwired legacy
+      # modules, build output) live in [tool.ruff] in pyproject.toml.
+      - name: Lint
+        run: uv run --python ${{ matrix.python-version }} ruff check .
+
+      # `testpaths` in pyproject.toml scopes this to tests/scrapling_tool.
+      # tests/{ai,cli,core,fetchers,parser,spiders} are upstream Scrapling's
+      # suite and target a package this fork no longer vendors.
+      - name: Test
+        run: uv run --python ${{ matrix.python-version }} pytest -q
+
+  build:
+    name: build sdist + wheel
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Build distributions
+        run: uv build
+
+      # The dashboard is the product; a wheel without it serves a 404.
+      - name: Verify the dashboard is packaged
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as z:
+              info = z.getinfo("scrapling_tool/web/static/index.html")
+          assert info.file_size > 100_000, f"dashboard truncated: {info.file_size} bytes"
+          print(f"dashboard packaged: {info.file_size} bytes")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+
+      - name: Twine check
+        run: uv run --with twine twine check dist/*
+
+# Releasing and publishing live in release-and-publish.yml, which is tag-driven
+# and gated. Keeping a second publish path here was how the two workflows
+# disagreed about which package name they were shipping.
