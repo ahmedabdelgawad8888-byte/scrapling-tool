@@ -1,4 +1,3 @@
-# System packages for Playwright/Chromium on Debian/Ubuntu (Streamlit Cloud)
 chromium
 chromium-driver
 libnss3
