@@ -13,7 +13,3 @@ services:
         value: 10000
       - key: PYTHONUNBUFFERED
         value: "1"
-    disk:
-      name: scrapling-data
-      mountPath: /app/data
-      sizeGB: 1
