@@ -17,10 +17,15 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Ensure the project root is on sys.path so we can import ultra_scraper
+# Ensure the project root is on sys.path so we can import ultra_scraper, and
+# src/ so we can import the scrapling_tool package (src-layout, see
+# [tool.setuptools.package-dir] in pyproject.toml). Hosts that only run
+# `streamlit run streamlit_app.py` against requirements.txt never install the
+# local package, so without src/ here ultra_scraper dies on import.
 _PROJECT_ROOT = Path(__file__).resolve().parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+for _path in (_PROJECT_ROOT, _PROJECT_ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 # Import the scraping engine
 from ultra_scraper import (  # noqa: E402
