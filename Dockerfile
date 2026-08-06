@@ -1,6 +1,5 @@
 FROM python:3.12-slim-trixie
 
-# This image ships **scrapling-tool** (this fork), not upstream Scrapling.
 LABEL org.opencontainers.image.title="scrapling-tool" \
       org.opencontainers.image.description="Hardened Scrapling-powered CLI/MCP/dashboard for social-media and generic site scraping" \
       org.opencontainers.image.licenses="BSD-3-Clause"
@@ -15,16 +14,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
-# Dependency manifests first, for layer caching. uv.lock keeps the image
-# reproducible; without it every rebuild re-resolves.
+# Dependency manifests first, for layer caching.
 COPY pyproject.toml uv.lock ./
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --all-extras
 
-# Source. `_build/` (the in-tree build backend) and `index.html` (the
-# dashboard) must both be present or the project install produces a wheel with
-# no UI — see _build/backend.py.
+# Source code
 COPY . .
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -37,12 +33,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 8080: web dashboard (`scrape web`). 8000: MCP server HTTP transport.
-EXPOSE 8080 8000
+# HF Spaces uses port 7860
+EXPOSE 7860 8080 8000
 
-# `scrape` is this project's CLI. The bare `scrapling` command belongs to the
-# upstream dependency and would have bypassed this tool entirely.
-ENTRYPOINT ["uv", "run", "scrape"]
-
-# Override with e.g. `web --host 0.0.0.0` or `mcp --http`.
-CMD ["--help"]
+# HF Spaces sets PORT=7860. We use it for the web dashboard.
+ENTRYPOINT uv run scrape web --host 0.0.0.0 --port ${PORT:-8080}
