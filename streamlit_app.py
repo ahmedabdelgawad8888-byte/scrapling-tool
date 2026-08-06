@@ -2,14 +2,13 @@
 """
 Scrapling Tool — Streamlit Dashboard
 A native Streamlit app that wraps the scraping engine from ultra_scraper.py.
-Designed for Streamlit Community Cloud (free, no credit card).
+Deployed as a Docker Space on Hugging Face (see Dockerfile); also runs on
+Streamlit Community Cloud, where Chromium is fetched at runtime instead.
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
 import subprocess
 import sys
 import time
@@ -52,6 +51,8 @@ from ultra_scraper import (  # noqa: E402
 )
 from scrapling_tool.discovery import SUPPORTED_PLATFORMS  # noqa: E402
 
+import app_ui  # noqa: E402  (root is on sys.path from the block above)
+
 TARGETS = ("accounts", "videos", "posts", "stories", "hashtags")
 _POST_PLATFORMS = ("tiktok", "instagram", "youtube", "twitter", "snapchat")
 
@@ -66,37 +67,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Dark theme matching the original dashboard
-st.markdown("""
-<style>
-    /* Dark theme overrides */
-    .stApp {
-        background: #0a0910;
-    }
-    /* Tighter spacing */
-    .main .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-        max-width: 1400px;
-    }
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: #15131f;
-        border: 1px solid #2b2738;
-        border-radius: 10px;
-        padding: 15px;
-    }
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: #1d1a29;
-        border-radius: 8px;
-    }
-    /* Status badges */
-    .badge-ok { color: #10b981; font-weight: bold; }
-    .badge-err { color: #ef4444; font-weight: bold; }
-    .badge-warn { color: #f59e0b; font-weight: bold; }
-</style>
-""", unsafe_allow_html=True)
+# Theme (dark by default, switchable from the sidebar) — see app_ui.
+app_ui.inject_theme()
 
 
 # ---------------------------------------------------------------------------
@@ -154,22 +126,6 @@ def _results_to_df(results: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _df_to_csv_download(df: pd.DataFrame, filename: str = "results.csv"):
-    """Create a CSV download button."""
-    csv = df.to_csv(index=False).encode("utf-8")
-    b64 = base64.b64encode(csv).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">📥 Download CSV</a>'
-    st.markdown(href, unsafe_allow_html=True)
-
-
-def _df_to_json_download(data: list[dict], filename: str = "results.json"):
-    """Create a JSON download button."""
-    json_str = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-    b64 = base64.b64encode(json_str).decode()
-    href = f'<a href="data:application/json;base64,{b64}" download="{filename}">📥 Download JSON</a>'
-    st.markdown(href, unsafe_allow_html=True)
-
-
 @st.cache_resource(show_spinner="Preparing browser engine…")
 def _browser_ready() -> bool:
     """Report whether Playwright can actually launch Chromium.
@@ -214,6 +170,10 @@ _BROWSER_OK = _browser_ready()
 with st.sidebar:
     st.markdown("## 🕷️ Scrapling Tool")
     st.caption("v1.3.0 — Web Scraping Dashboard")
+
+    app_ui.theme_toggle()
+
+    st.divider()
 
     # Status indicators
     st.markdown("### System Status")
@@ -265,7 +225,7 @@ with st.sidebar:
     proxy = st.text_input("Proxy URL", placeholder="http://user:pass@host:port")
 
     st.divider()
-    st.markdown("Made with ❤️ via Streamlit Cloud")
+    st.markdown("Made with ❤️ · Scrapling Tool")
 
 
 # ---------------------------------------------------------------------------
@@ -296,16 +256,29 @@ with tab_scrape:
         key="scrape_urls",
     )
 
+    uploaded = st.file_uploader(
+        "…or upload a list (.txt / .csv / .json)",
+        type=["txt", "csv", "json"],
+        key="scrape_upload",
+        help="One URL per line, any CSV column containing links, or a JSON array.",
+    )
+    uploaded_urls = app_ui.urls_from_upload(uploaded)
+    if uploaded_urls:
+        st.success(f"Found {len(uploaded_urls)} URL(s) in {uploaded.name}")
+        with st.expander("Preview uploaded URLs"):
+            st.code("\n".join(uploaded_urls[:50]) or "—")
+
     col_btn, col_info = st.columns([1, 3])
     with col_btn:
         scrape_btn = st.button("🚀 Scrape", type="primary", use_container_width=True)
     with col_info:
-        if urls_input.strip():
-            url_count = len([u for u in urls_input.strip().split("\n") if u.strip()])
-            st.caption(f"{url_count} URL(s) ready")
+        pending = len([u for u in urls_input.strip().split("\n") if u.strip()]) + len(uploaded_urls)
+        if pending:
+            st.caption(f"{pending} URL(s) ready")
 
     if scrape_btn:
         raw_urls = [u.strip() for u in urls_input.strip().split("\n") if u.strip()]
+        raw_urls.extend(uploaded_urls)
         if not raw_urls:
             st.warning("Enter at least one URL.")
         else:
@@ -356,18 +329,10 @@ with tab_scrape:
                 c3.metric("Errors", stats["errors"])
                 c4.metric("Avg Time", f"{stats['avgTime']}s")
 
-                # Results table
-                df = _results_to_df(results)
-                st.markdown("### Results")
-                st.dataframe(df, use_container_width=True, hide_index=True)
-
-                # Downloads
-                if not df.empty:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        _df_to_csv_download(df, "scrape_results.csv")
-                    with col2:
-                        _df_to_json_download(results, "scrape_results.json")
+                app_ui.render_results(
+                    _results_to_df(results), results,
+                    key="scrape", basename="scrape_results",
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -483,13 +448,10 @@ with tab_search:
                     st.metric(plat.title(), len(hits))
 
             if results:
-                df = _results_to_df(results)
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                col1, col2 = st.columns(2)
-                with col1:
-                    _df_to_csv_download(df, "discovery_results.csv")
-                with col2:
-                    _df_to_json_download(results, "discovery_results.json")
+                app_ui.render_results(
+                    _results_to_df(results), results,
+                    key="discover", basename="discovery_results",
+                )
             else:
                 st.info("No results matched your filters. Try widening them.")
 
@@ -579,13 +541,10 @@ with tab_lookalike:
                         st.caption("**Derived signals:** " + ", ".join(signals))
 
                     if results:
-                        df = _results_to_df(results)
-                        st.dataframe(df, use_container_width=True, hide_index=True)
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            _df_to_csv_download(df, "lookalike_results.csv")
-                        with col2:
-                            _df_to_json_download(results, "lookalike_results.json")
+                        app_ui.render_results(
+                            _results_to_df(results), results,
+                            key="lookalike", basename="lookalike_results",
+                        )
                     else:
                         st.info("No lookalikes found above the similarity threshold.")
 
@@ -676,10 +635,10 @@ with tab_posts:
                             "Followers": _fmt_count(r.get("followers")),
                             "Snippet": (r.get("snippet", "") or "")[:120],
                         })
-                    df = pd.DataFrame(display_rows)
-                    st.dataframe(df, use_container_width=True, hide_index=True)
-                    _df_to_csv_download(df, "posts_results.csv")
-                    _df_to_json_download(rows, "posts_results.json")
+                    app_ui.render_results(
+                        pd.DataFrame(display_rows), rows,
+                        key="posts", basename="posts_results", title="Posts",
+                    )
                 else:
                     st.info("No posts found.")
 
@@ -744,11 +703,11 @@ with tab_posts:
                             "Posts": c.get("post_count", c.get("posts", 0)),
                             "Confidence": c.get("confidence", ""),
                         })
-                    df_c = pd.DataFrame(display_creators)
-                    st.markdown("#### Creators")
-                    st.dataframe(df_c, use_container_width=True, hide_index=True)
-                    _df_to_csv_download(df_c, "brand_creators.csv")
-                    _df_to_json_download(creators, "brand_creators.json")
+                    app_ui.render_results(
+                        pd.DataFrame(display_creators), creators,
+                        key="brand_creators", basename="brand_creators",
+                        title="Creators",
+                    )
 
                 if posts:
                     display_posts = []
@@ -760,11 +719,10 @@ with tab_posts:
                             "Matched": ", ".join(p_row.get("matched_terms", [])),
                             "Confidence": p_row.get("confidence", p_row.get("confidence_tier", "")),
                         })
-                    df_p = pd.DataFrame(display_posts)
-                    st.markdown("#### Posts")
-                    st.dataframe(df_p, use_container_width=True, hide_index=True)
-                    _df_to_csv_download(df_p, "brand_posts.csv")
-                    _df_to_json_download(posts, "brand_posts.json")
+                    app_ui.render_results(
+                        pd.DataFrame(display_posts), posts,
+                        key="brand_posts", basename="brand_posts", title="Posts",
+                    )
 
                 if not creators and not posts:
                     st.info("No mentions found for this brand.")

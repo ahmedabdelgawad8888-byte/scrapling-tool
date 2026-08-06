@@ -1,3 +1,18 @@
+---
+title: Scrapling Tool
+emoji: 🕷️
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+license: bsd-3-clause
+short_description: Scrape profiles, discover creators, and find lookalikes
+---
+
+<!-- The block above is Hugging Face Space metadata; GitHub renders it as a
+     table. Keeping it here means `git push hf master:main` deploys as-is. -->
+
 <!-- mcp-name: io.github.D4Vinci/Scrapling -->
 
 <h1 align="center">

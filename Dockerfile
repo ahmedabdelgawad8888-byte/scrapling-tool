@@ -1,39 +1,48 @@
-FROM python:3.12-slim-trixie
+FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="scrapling-tool" \
-      org.opencontainers.image.description="Hardened Scrapling-powered CLI/MCP/dashboard for social-media and generic site scraping" \
+      org.opencontainers.image.description="Scrapling-powered scraping dashboard (Streamlit)" \
       org.opencontainers.image.licenses="BSD-3-Clause"
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
+# Browsers land outside $HOME so the non-root runtime user can read them.
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    STREAMLIT_SERVER_PORT=7860
 
 WORKDIR /app
 
-# Dependency manifests first, for layer caching.
-COPY pyproject.toml uv.lock ./
+# Dependency manifest first so edits to the app don't rebuild the whole stack.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --all-extras
+# `--with-deps` pulls the exact apt libraries Chromium links against, so this
+# stays correct across base-image bumps (packages.txt is for Streamlit Cloud,
+# which has no such command).
+# Two browsers on purpose: "browser" mode drives playwright, "stealth" mode
+# drives patchright (scrapling/_stealth.py). Installing only one silently
+# breaks the other mode at runtime.
+RUN python -m playwright install --with-deps chromium && \
+    python -m patchright install chromium && \
+    chmod -R a+rX /ms-playwright && \
+    rm -rf /var/lib/apt/lists/*
 
-# Source code
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
-    apt-get update && \
-    uv run playwright install-deps chromium && \
-    uv run playwright install chromium && \
-    uv sync --locked --all-extras && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Hugging Face Spaces runs containers as UID 1000.
+RUN useradd -m -u 1000 user && chown -R user:user /app
+USER user
+ENV HOME=/home/user
 
-# Koyeb assigns PORT env var
-EXPOSE 8080 8000
+EXPOSE 7860
 
-ENTRYPOINT uv run scrape web --host 0.0.0.0 --port ${PORT:-8080}
+# enableXsrfProtection is off because the Spaces proxy strips the origin header
+# that Streamlit's XSRF check needs, which otherwise breaks the file uploader.
+CMD ["streamlit", "run", "streamlit_app.py", \
+     "--server.port=7860", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true", \
+     "--server.enableCORS=false", \
+     "--server.enableXsrfProtection=false"]

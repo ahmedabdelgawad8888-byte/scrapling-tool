@@ -7,6 +7,17 @@ images/
 .cache/
 .claude/
 
+# scraped result artifacts (gitignored, but keep them out of the build context)
+*_results.csv
+*_results.json
+social_results.csv
+mix_results.json
+urls_full.txt
+output/
+instagram_data/
+instagram_pages/
+instagram_pages_structured/
+
 # cached files
 __pycache__/
 *.py[cod]
