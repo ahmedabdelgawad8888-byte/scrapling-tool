@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -169,6 +170,44 @@ def _df_to_json_download(data: list[dict], filename: str = "results.json"):
     st.markdown(href, unsafe_allow_html=True)
 
 
+@st.cache_resource(show_spinner="Preparing browser engine…")
+def _browser_ready() -> bool:
+    """Report whether Playwright can actually launch Chromium.
+
+    ``_HAS_PLAYWRIGHT`` only means the pip package imports. Hosts like
+    Streamlit Community Cloud install requirements.txt but never run setup.sh,
+    so the Chromium binary is missing and browser/stealth modes would fail at
+    runtime. Fetch it once per container; fall back to HTTP-only if we can't.
+    """
+    if not _HAS_PLAYWRIGHT:
+        return False
+
+    from playwright.sync_api import sync_playwright
+
+    def _installed() -> bool:
+        try:
+            with sync_playwright() as p:
+                return Path(p.chromium.executable_path).exists()
+        except Exception:
+            return False
+
+    if _installed():
+        return True
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+            capture_output=True,
+            timeout=600,
+        )
+    except Exception:
+        return False
+    return _installed()
+
+
+_BROWSER_OK = _browser_ready()
+
+
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
@@ -185,15 +224,15 @@ with st.sidebar:
         else:
             st.markdown("❌ Scrapling")
     with col2:
-        if _HAS_PLAYWRIGHT:
+        if _BROWSER_OK:
             st.markdown("✅ Playwright")
         else:
             st.markdown("⚠️ No Playwright")
 
     if not _HAS_FETCHERS:
         st.warning("Scrapling fetchers not available. Only HTTP mode will work.")
-    if not _HAS_PLAYWRIGHT:
-        st.info("Playwright not installed. Browser/Stealth modes unavailable.")
+    if not _BROWSER_OK:
+        st.info("Chromium unavailable on this host. Browser/Stealth modes disabled; HTTP mode works.")
 
     st.divider()
 
@@ -201,7 +240,7 @@ with st.sidebar:
     st.markdown("### Fetch Mode")
     mode = st.selectbox(
         "Mode",
-        options=["http", "browser", "stealth"] if _HAS_PLAYWRIGHT else ["http"],
+        options=["http", "browser", "stealth"] if _BROWSER_OK else ["http"],
         help=(
             "HTTP: fast curl_cffi impersonation\n"
             "Browser: Playwright Chromium\n"
