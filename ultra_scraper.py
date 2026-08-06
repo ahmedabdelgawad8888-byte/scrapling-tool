@@ -6018,6 +6018,7 @@ def web(host, port):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from urllib.parse import parse_qs, urlparse
 
+    Handler = _build_web_handler()
     ui_path = _dashboard_path()
 
     _echo(f"Starting web UI at http://{host}:{port}", "cyan")
@@ -6030,6 +6031,24 @@ def web(host, port):
             "red",
         )
     _echo("Press Ctrl+C to stop", "yellow")
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    server.daemon_threads = True
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        _echo("\nShutting down...", "yellow")
+        server.shutdown()
+
+
+def _build_web_handler():
+    """Build the dashboard/API request handler class (used by the CLI server and WSGI hosts)."""
+    import asyncio
+    import json as _json
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
+
+    ui_path = _dashboard_path()
 
     # --- Rate limiter (token bucket per IP) ---
     import threading as _threading
@@ -7282,13 +7301,7 @@ def web(host, port):
 
             asyncio.run(_run())
 
-    server = ThreadingHTTPServer((host, port), Handler)
-    server.daemon_threads = True
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        _echo("\nShutting down...", "yellow")
-        server.shutdown()
+    return Handler
 
 
 def serve_dashboard() -> None:
