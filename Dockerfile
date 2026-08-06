@@ -33,8 +33,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# HF Spaces uses port 7860
-EXPOSE 7860 8080 8000
+# Koyeb assigns PORT env var
+EXPOSE 8080 8000
 
-# HF Spaces sets PORT=7860. We use it for the web dashboard.
 ENTRYPOINT uv run scrape web --host 0.0.0.0 --port ${PORT:-8080}
