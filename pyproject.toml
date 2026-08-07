@@ -7,7 +7,7 @@ backend-path = ["_build"]
 
 [project]
 name = "scrapling-tool"
-version = "1.3.0"
+version = "1.3.1"
 description = "Hardened Scrapling-powered CLI/MCP for social-media and generic site scraping"
 readme = "README.md"
 license = "BSD-3-Clause"
