@@ -1,15 +1,22 @@
 # Render Blueprint — one-click deploy for Scrapling Tool
 # https://render.com/docs/blueprint-spec
+#
+# Uses Dockerfile.render, which omits Chromium: the free instance has 512MB,
+# and a browser would not fit. HTTP mode is what runs here.
 services:
   - type: web
     name: scrapling-tool
-    env: docker
+    runtime: docker
     dockerfilePath: ./Dockerfile.render
-    dockerContext: ./
+    dockerContext: .
     plan: free
-    healthCheckPath: /api/health
+    region: oregon
+    healthCheckPath: /healthz
     envVars:
-      - key: PORT
-        value: 10000
       - key: PYTHONUNBUFFERED
         value: "1"
+      # Free instances have an ephemeral filesystem, so run history resets on
+      # every restart and after each idle spin-down. Attach a disk (paid) and
+      # point this at it to keep runs.
+      - key: SCRAPLING_DATA_DIR
+        value: /app

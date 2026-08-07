@@ -1,39 +1,39 @@
-FROM python:3.12-slim-trixie
+# Slim image for hosts with ~512MB RAM (Render's free tier and similar).
+#
+# Deliberately ships NO Chromium: the browser alone needs more memory than the
+# whole instance has, so installing it would only buy OOM kills. The app probes
+# for a browser at startup, reports `browser: false`, and disables the Browser
+# and Stealth modes in the UI rather than offering something that cannot run.
+#
+# HTTP mode still covers YouTube, X/Twitter and Instagram. TikTok answers
+# plain-HTTP clients with a captcha shell, so it reports as Blocked here.
+# For full coverage use the main ./Dockerfile on a host with ~2GB.
+
+FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="scrapling-tool" \
-      org.opencontainers.image.description="Hardened Scrapling-powered CLI/MCP/dashboard for social-media and generic site scraping" \
+      org.opencontainers.image.description="Scrapling scraping dashboard (HTTP-only build)" \
       org.opencontainers.image.licenses="BSD-3-Clause"
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=10000
 
 WORKDIR /app
 
-# Dependency manifests first, for layer caching.
-COPY pyproject.toml uv.lock ./
+COPY requirements.txt ./
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --all-extras
-
-# Source code
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
-    apt-get update && \
-    uv run playwright install-deps chromium && \
-    uv run playwright install chromium && \
-    uv sync --locked --all-extras && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN useradd -m -u 1000 user && chown -R user:user /app
+USER user
+ENV HOME=/home/user
 
-EXPOSE 8080 8000
+EXPOSE 10000
 
-# Render sets PORT env var (e.g. 10000). Shell form reads it at runtime.
-ENTRYPOINT uv run scrape web --host 0.0.0.0 --port ${PORT:-8080}
+# Shell form so ${PORT} is read at runtime — Render assigns it.
+CMD uvicorn webapp.server:create_app --factory --host 0.0.0.0 --port ${PORT:-10000} --workers 1
