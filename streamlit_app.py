@@ -28,10 +28,11 @@ for _path in (_PROJECT_ROOT, _PROJECT_ROOT / "src"):
         sys.path.insert(0, str(_path))
 
 # Import the scraping engine
+import app_ui  # noqa: E402  (root is on sys.path from the block above)
+from scrapling_tool.discovery import SUPPORTED_PLATFORMS  # noqa: E402
 from ultra_scraper import (  # noqa: E402
     _HAS_FETCHERS,
     _HAS_PLAYWRIGHT,
-    _canonical_profile_fields,
     _canonical_social_url,
     _discover,
     _find_brand_mentions,
@@ -41,17 +42,13 @@ from ultra_scraper import (  # noqa: E402
     _scrape_one,
     _scrape_stats,
     _search_passes,
+    _term_label,
     _to_int_count,
     _validate_url,
-    derive_seed_keywords,
     expand_brand_aliases,
     normalize_recency,
     split_keywords,
-    _term_label,
 )
-from scrapling_tool.discovery import SUPPORTED_PLATFORMS  # noqa: E402
-
-import app_ui  # noqa: E402  (root is on sys.path from the block above)
 
 TARGETS = ("accounts", "videos", "posts", "stories", "hashtags")
 _POST_PLATFORMS = ("tiktok", "instagram", "youtube", "twitter", "snapchat")
@@ -100,11 +97,46 @@ def _fmt_count(val) -> str:
     return str(n)
 
 
+def _row_state(r: dict) -> str:
+    """One-glance verdict for a row.
+
+    A soft-blocked row arrives as HTTP 200 with every field empty, so the
+    status code alone would read as success in the table.
+    """
+    if r.get("blocked"):
+        return "🚫 Blocked"
+    if r.get("error"):
+        return "⚠️ Error"
+    if r.get("status") == 200:
+        return "✅ OK"
+    return f"❔ {r.get('status', 0)}"
+
+
+def _blocked_notice(stats: dict, mode: str) -> None:
+    """Explain blocked rows and name the next thing worth trying."""
+    blocked = stats.get("blocked", 0)
+    if not blocked:
+        return
+    hint = "Try Stealth mode, lower the concurrency, or set a proxy in the sidebar."
+    if mode == "http" and _BROWSER_OK:
+        hint = "Turn on Auto-escalate in the sidebar, or switch to Browser/Stealth mode."
+    elif not _BROWSER_OK:
+        hint = (
+            "This host has no browser engine, so HTTP mode is all that's available. "
+            "TikTok and Instagram usually need Browser or Stealth mode."
+        )
+    st.warning(
+        f"{blocked} of {stats['total']} URL(s) came back blocked — the site served a "
+        f"captcha or an empty page instead of real data. {hint}"
+    )
+
+
 def _results_to_df(results: list[dict]) -> pd.DataFrame:
     """Convert scraping results to a flat DataFrame."""
     rows = []
     for r in results:
         rows.append({
+            "State": _row_state(r),
             "Platform": r.get("platform", "").title(),
             "Username": r.get("username", ""),
             "Full Name": r.get("full_name", ""),
@@ -219,7 +251,14 @@ with st.sidebar:
     with col_r:
         retries = st.number_input("Retries", 0, 5, 2)
     with col_e:
-        auto_escalate = st.checkbox("Auto-escalate", help="If HTTP fails, try browser then stealth")
+        # On by default wherever a browser exists: TikTok and Instagram answer
+        # HTTP-only fetches with a captcha shell, so without escalation those
+        # scrapes come back empty.
+        auto_escalate = st.checkbox(
+            "Auto-escalate",
+            value=_BROWSER_OK,
+            help="When a fetch comes back blocked or empty, retry in browser then stealth mode.",
+        )
 
     use_cache = st.checkbox("Use cache", value=True)
     proxy = st.text_input("Proxy URL", placeholder="http://user:pass@host:port")
@@ -321,18 +360,26 @@ with tab_scrape:
                 time.sleep(0.3)
                 progress.empty()
 
-                # Stats
-                stats = _scrape_stats(results)
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total", stats["total"])
-                c2.metric("Successful", stats["ok"])
-                c3.metric("Errors", stats["errors"])
-                c4.metric("Avg Time", f"{stats['avgTime']}s")
+                st.session_state["scrape_results"] = results
 
-                app_ui.render_results(
-                    _results_to_df(results), results,
-                    key="scrape", basename="scrape_results",
-                )
+    # Rendered outside the button branch so results survive a tab switch or
+    # any other rerun, instead of vanishing the moment the script re-executes.
+    if st.session_state.get("scrape_results"):
+        results = st.session_state["scrape_results"]
+        stats = _scrape_stats(results)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Total", stats["total"])
+        c2.metric("Successful", stats["ok"])
+        c3.metric("Blocked", stats["blocked"])
+        c4.metric("Errors", stats["errors"])
+        c5.metric("Avg Time", f"{stats['avgTime']}s")
+
+        _blocked_notice(stats, mode)
+
+        app_ui.render_results(
+            _results_to_df(results), results,
+            key="scrape", basename="scrape_results",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -433,27 +480,34 @@ with tab_search:
                     return matched[:limit], found
 
                 results, found = _run_async(_do_search())
+            st.session_state["discover_results"] = results
+            st.session_state["discover_found"] = found
 
-            # Stats
-            st.markdown("### Discovery Results")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Candidates", sum(len(v) for v in found.values()))
-            c2.metric("Matched", len(results))
-            c3.metric("Platforms", len(found))
+    if st.session_state.get("discover_found") is not None:
+        results = st.session_state.get("discover_results") or []
+        found = st.session_state["discover_found"]
 
-            # Discovered by platform
+        st.markdown("### Discovery Results")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Candidates", sum(len(v) for v in found.values()))
+        c2.metric("Matched", len(results))
+        c3.metric("Platforms", len(found))
+
+        # Discovered by platform
+        if found:
             disc_cols = st.columns(len(found))
             for i, (plat, hits) in enumerate(found.items()):
                 with disc_cols[i]:
                     st.metric(plat.title(), len(hits))
 
-            if results:
-                app_ui.render_results(
-                    _results_to_df(results), results,
-                    key="discover", basename="discovery_results",
-                )
-            else:
-                st.info("No results matched your filters. Try widening them.")
+        if results:
+            _blocked_notice(_scrape_stats(results), mode)
+            app_ui.render_results(
+                _results_to_df(results), results,
+                key="discover", basename="discovery_results",
+            )
+        else:
+            st.info("No results matched your filters. Try widening them.")
 
 
 # ---------------------------------------------------------------------------
@@ -525,28 +579,32 @@ with tab_lookalike:
                         "use_cache": use_cache,
                     }
                     payload = _run_async(_run_lookalike(p))
+                st.session_state["lookalike_payload"] = payload
 
-                if payload.get("error"):
-                    st.error(f"Error: {payload['error']}")
-                else:
-                    results = payload.get("results", [])
-                    signals = payload.get("signals", [])
+    payload = st.session_state.get("lookalike_payload")
+    if payload:
+        if payload.get("error"):
+            st.error(f"Error: {payload['error']}")
+        else:
+            results = payload.get("results", [])
+            signals = payload.get("signals", [])
 
-                    st.markdown("### Lookalike Results")
-                    c1, c2 = st.columns(2)
-                    c1.metric("Found", len(results))
-                    c2.metric("Signals used", len(signals))
+            st.markdown("### Lookalike Results")
+            c1, c2 = st.columns(2)
+            c1.metric("Found", len(results))
+            c2.metric("Signals used", len(signals))
 
-                    if signals:
-                        st.caption("**Derived signals:** " + ", ".join(signals))
+            if signals:
+                st.caption("**Derived signals:** " + ", ".join(signals))
 
-                    if results:
-                        app_ui.render_results(
-                            _results_to_df(results), results,
-                            key="lookalike", basename="lookalike_results",
-                        )
-                    else:
-                        st.info("No lookalikes found above the similarity threshold.")
+            if results:
+                _blocked_notice(_scrape_stats(results), mode)
+                app_ui.render_results(
+                    _results_to_df(results), results,
+                    key="lookalike", basename="lookalike_results",
+                )
+            else:
+                st.info("No lookalikes found above the similarity threshold.")
 
 
 # ---------------------------------------------------------------------------
@@ -620,27 +678,30 @@ with tab_posts:
                         return rows
 
                     rows = _run_async(_do_posts())
+                st.session_state["posts_rows"] = rows
 
-                st.markdown(f"### Found {len(rows)} posts")
-                if rows:
-                    # Flatten for display
-                    display_rows = []
-                    for r in rows:
-                        display_rows.append({
-                            "Platform": r.get("platform", "").title(),
-                            "Username": r.get("username", ""),
-                            "URL": r.get("url", ""),
-                            "Title": (r.get("title", "") or "")[:80],
-                            "Matched": ", ".join(r.get("matched_terms", [])),
-                            "Followers": _fmt_count(r.get("followers")),
-                            "Snippet": (r.get("snippet", "") or "")[:120],
-                        })
-                    app_ui.render_results(
-                        pd.DataFrame(display_rows), rows,
-                        key="posts", basename="posts_results", title="Posts",
-                    )
-                else:
-                    st.info("No posts found.")
+        rows = st.session_state.get("posts_rows")
+        if rows is not None:
+            st.markdown(f"### Found {len(rows)} posts")
+            if rows:
+                # Flatten for display
+                display_rows = []
+                for r in rows:
+                    display_rows.append({
+                        "Platform": r.get("platform", "").title(),
+                        "Username": r.get("username", ""),
+                        "URL": r.get("url", ""),
+                        "Title": (r.get("title", "") or "")[:80],
+                        "Matched": ", ".join(r.get("matched_terms", [])),
+                        "Followers": _fmt_count(r.get("followers")),
+                        "Snippet": (r.get("snippet", "") or "")[:120],
+                    })
+                app_ui.render_results(
+                    pd.DataFrame(display_rows), rows,
+                    key="posts", basename="posts_results", title="Posts",
+                )
+            else:
+                st.info("No posts found.")
 
     else:  # brand_mentions
         brand_seeds = st.text_input(
@@ -684,45 +745,48 @@ with tab_posts:
                         recency=normalize_recency(recency_bm),
                         aliases=expand_brand_aliases(seeds, [_term_label(t) for t in term_list]),
                     ))
+                st.session_state["brand_payload"] = payload
 
-                creators = payload.get("creators", [])
-                posts = payload.get("posts", [])
-                st.markdown("### Brand Mention Results")
-                c1, c2 = st.columns(2)
-                c1.metric("Creators", len(creators))
-                c2.metric("Posts", len(posts))
+        payload = st.session_state.get("brand_payload")
+        if payload:
+            creators = payload.get("creators", [])
+            posts = payload.get("posts", [])
+            st.markdown("### Brand Mention Results")
+            c1, c2 = st.columns(2)
+            c1.metric("Creators", len(creators))
+            c2.metric("Posts", len(posts))
 
-                if creators:
-                    display_creators = []
-                    for c in creators:
-                        display_creators.append({
-                            "Platform": c.get("platform", "").title(),
-                            "Username": c.get("username", ""),
-                            "Followers": _fmt_count(c.get("followers")),
-                            "URL": c.get("profile_url", c.get("url", "")),
-                            "Posts": c.get("post_count", c.get("posts", 0)),
-                            "Confidence": c.get("confidence", ""),
-                        })
-                    app_ui.render_results(
-                        pd.DataFrame(display_creators), creators,
-                        key="brand_creators", basename="brand_creators",
-                        title="Creators",
-                    )
+            if creators:
+                display_creators = []
+                for c in creators:
+                    display_creators.append({
+                        "Platform": c.get("platform", "").title(),
+                        "Username": c.get("username", ""),
+                        "Followers": _fmt_count(c.get("followers")),
+                        "URL": c.get("profile_url", c.get("url", "")),
+                        "Posts": c.get("post_count", c.get("posts", 0)),
+                        "Confidence": c.get("confidence", ""),
+                    })
+                app_ui.render_results(
+                    pd.DataFrame(display_creators), creators,
+                    key="brand_creators", basename="brand_creators",
+                    title="Creators",
+                )
 
-                if posts:
-                    display_posts = []
-                    for p_row in posts:
-                        display_posts.append({
-                            "Platform": p_row.get("platform", "").title(),
-                            "Username": p_row.get("username", ""),
-                            "URL": p_row.get("url", ""),
-                            "Matched": ", ".join(p_row.get("matched_terms", [])),
-                            "Confidence": p_row.get("confidence", p_row.get("confidence_tier", "")),
-                        })
-                    app_ui.render_results(
-                        pd.DataFrame(display_posts), posts,
-                        key="brand_posts", basename="brand_posts", title="Posts",
-                    )
+            if posts:
+                display_posts = []
+                for p_row in posts:
+                    display_posts.append({
+                        "Platform": p_row.get("platform", "").title(),
+                        "Username": p_row.get("username", ""),
+                        "URL": p_row.get("url", ""),
+                        "Matched": ", ".join(p_row.get("matched_terms", [])),
+                        "Confidence": p_row.get("confidence", p_row.get("confidence_tier", "")),
+                    })
+                app_ui.render_results(
+                    pd.DataFrame(display_posts), posts,
+                    key="brand_posts", basename="brand_posts", title="Posts",
+                )
 
-                if not creators and not posts:
-                    st.info("No mentions found for this brand.")
+            if not creators and not posts:
+                st.info("No mentions found for this brand.")

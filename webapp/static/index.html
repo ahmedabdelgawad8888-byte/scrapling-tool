@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scrapling Tool — Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕷️</text></svg>">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">🕷️</span>
+    <span class="brand-text">
+      <strong>Scrapling</strong>
+      <small>Creator intelligence</small>
+    </span>
+  </div>
+
+  <nav class="tabs" id="tabs" aria-label="Views">
+    <button class="tab is-active" data-view="scrape">Scrape</button>
+    <button class="tab" data-view="discover">Discover</button>
+    <button class="tab" data-view="lookalike">Lookalike</button>
+    <button class="tab" data-view="posts">Posts</button>
+    <button class="tab" data-view="mentions">Mentions</button>
+    <button class="tab" data-view="capture">Capture</button>
+    <button class="tab" data-view="history">History</button>
+    <button class="tab" data-view="schedules">Schedules</button>
+  </nav>
+
+  <div class="topbar-end">
+    <div class="pills" id="healthPills" aria-live="polite"></div>
+    <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ---------------------------------------------------------------- -->
+  <aside class="sidebar" aria-label="Fetch settings">
+    <h2 class="side-title">Fetch mode</h2>
+    <div class="segmented" id="modeGroup" role="radiogroup" aria-label="Fetch mode">
+      <button role="radio" aria-checked="true"  class="seg is-active" data-mode="http">HTTP</button>
+      <button role="radio" aria-checked="false" class="seg" data-mode="browser">Browser</button>
+      <button role="radio" aria-checked="false" class="seg" data-mode="stealth">Stealth</button>
+    </div>
+    <p class="side-hint" id="modeHint">Fast impersonated HTTP via Scrapling.</p>
+
+    <h2 class="side-title">Limits</h2>
+    <label class="field">
+      <span class="field-label">Concurrency <output id="concOut">10</output></span>
+      <input type="range" id="concurrency" min="1" max="40" value="10">
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">Timeout (s)</span>
+        <input type="number" id="timeout" min="5" max="180" value="30">
+      </label>
+      <label class="field">
+        <span class="field-label">Retries</span>
+        <input type="number" id="retries" min="0" max="5" value="1">
+      </label>
+    </div>
+
+    <h2 class="side-title">Behaviour</h2>
+    <label class="check">
+      <input type="checkbox" id="autoEscalate" checked>
+      <span>
+        Auto-escalate
+        <small>Retry blocked fetches in browser, then stealth.</small>
+      </span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="useCache" checked>
+      <span>
+        Use cache
+        <small>Reuse recent results for the same URL.</small>
+      </span>
+    </label>
+    <label class="field">
+      <span class="field-label">Proxy URL</span>
+      <input type="text" id="proxy" placeholder="http://user:pass@host:port">
+    </label>
+
+    <div class="side-foot">
+      <span id="storeStat" class="muted"></span>
+    </div>
+  </aside>
+
+  <!-- ---------------------------------------------------------------- -->
+  <main class="main" id="main">
+
+    <!-- ========== SCRAPE ========== -->
+    <section class="view is-active" data-view="scrape">
+      <header class="view-head">
+        <h1>Scrape profiles &amp; pages</h1>
+        <p>Paste social profile or page URLs. Results stream in as each one lands.</p>
+      </header>
+      <div class="panel">
+        <label class="field">
+          <span class="field-label">URLs — one per line</span>
+          <textarea id="scrapeUrls" rows="5" spellcheck="false"
+            placeholder="https://www.tiktok.com/@username&#10;https://www.instagram.com/username/&#10;https://www.youtube.com/@channel"></textarea>
+        </label>
+        <div class="panel-foot">
+          <label class="file-btn">
+            <input type="file" id="scrapeFile" accept=".txt,.csv,.json" hidden>
+            <span>📎 Import list</span>
+          </label>
+          <span class="muted" id="scrapeCount">0 URLs</span>
+          <button class="btn btn-primary" data-run="scrape">Scrape</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== DISCOVER ========== -->
+    <section class="view" data-view="discover">
+      <header class="view-head">
+        <h1>Discover creators</h1>
+        <p>Find accounts, videos or hashtags by keyword across platforms.</p>
+      </header>
+      <div class="panel">
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Keywords — comma separated</span>
+            <input type="text" id="discKeywords" placeholder="fitness, yoga, wellness">
+          </label>
+          <label class="field">
+            <span class="field-label">Target</span>
+            <select id="discTarget"></select>
+          </label>
+        </div>
+        <div class="field">
+          <span class="field-label">Platforms</span>
+          <div class="chipset" id="discPlatforms"></div>
+        </div>
+        <div class="grid-3">
+          <label class="field">
+            <span class="field-label">Per platform</span>
+            <input type="number" id="discPer" min="1" max="40" value="15">
+          </label>
+          <label class="field">
+            <span class="field-label">Max results</span>
+            <input type="number" id="discLimit" min="1" max="500" value="100">
+          </label>
+          <label class="field">
+            <span class="field-label">Location</span>
+            <input type="text" id="discLocation" placeholder="US, UK…">
+          </label>
+        </div>
+        <details class="disclosure">
+          <summary>Filters</summary>
+          <div class="grid-3">
+            <label class="field">
+              <span class="field-label">Min followers</span>
+              <input type="number" id="discMinF" min="0" step="1000" value="0">
+            </label>
+            <label class="field">
+              <span class="field-label">Max followers</span>
+              <input type="number" id="discMaxF" min="0" step="1000" value="0">
+            </label>
+            <label class="field">
+              <span class="field-label">Bio keyword</span>
+              <input type="text" id="discBio" placeholder="coach">
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="discVerified"><span>Verified accounts only</span>
+          </label>
+        </details>
+        <div class="panel-foot">
+          <button class="btn btn-primary" data-run="discover">Discover</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== LOOKALIKE ========== -->
+    <section class="view" data-view="lookalike">
+      <header class="view-head">
+        <h1>Lookalike finder</h1>
+        <p>Give seed profiles; get creators with a similar audience and niche.</p>
+      </header>
+      <div class="panel">
+        <label class="field">
+          <span class="field-label">Seed profile URLs — one per line</span>
+          <textarea id="lookSeeds" rows="4" spellcheck="false"
+            placeholder="https://www.tiktok.com/@username&#10;https://www.instagram.com/username/"></textarea>
+        </label>
+        <div class="field">
+          <span class="field-label">Platforms to search</span>
+          <div class="chipset" id="lookPlatforms"></div>
+        </div>
+        <div class="grid-3">
+          <label class="field">
+            <span class="field-label">Per platform</span>
+            <input type="number" id="lookPer" min="1" max="40" value="12">
+          </label>
+          <label class="field">
+            <span class="field-label">Max results</span>
+            <input type="number" id="lookLimit" min="1" max="500" value="100">
+          </label>
+          <label class="field">
+            <span class="field-label">Min similarity</span>
+            <input type="number" id="lookScore" min="0" max="100" step="5" value="20">
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">Extra signals — optional</span>
+          <input type="text" id="lookSignals" placeholder="fashion, lifestyle">
+        </label>
+        <div class="panel-foot">
+          <button class="btn btn-primary" data-run="lookalike">Find lookalikes</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== POSTS ========== -->
+    <section class="view" data-view="posts">
+      <header class="view-head">
+        <h1>Post finder</h1>
+        <p>Find posts by specific creators matching hashtags or mentions.</p>
+      </header>
+      <div class="panel">
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Usernames — comma separated</span>
+            <input type="text" id="postUsers" placeholder="username1, username2">
+          </label>
+          <label class="field">
+            <span class="field-label">Hashtags / mentions</span>
+            <input type="text" id="postTerms" placeholder="#hashtag, @mention">
+          </label>
+        </div>
+        <div class="field">
+          <span class="field-label">Platforms</span>
+          <div class="chipset" id="postPlatforms"></div>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Per platform</span>
+            <input type="number" id="postPer" min="1" max="100" value="25">
+          </label>
+          <label class="check check-tall">
+            <input type="checkbox" id="postDeep" checked><span>Deep search</span>
+          </label>
+        </div>
+        <div class="panel-foot">
+          <button class="btn btn-primary" data-run="posts">Find posts</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== MENTIONS ========== -->
+    <section class="view" data-view="mentions">
+      <header class="view-head">
+        <h1>Brand mentions</h1>
+        <p>Discover creators talking about a brand, and the posts that prove it.</p>
+      </header>
+      <div class="panel">
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Brand handle(s) / URL(s)</span>
+            <input type="text" id="menSeeds" placeholder="@brandname">
+          </label>
+          <label class="field">
+            <span class="field-label">Mentions / hashtags</span>
+            <input type="text" id="menTerms" placeholder="#brand, @brand">
+          </label>
+        </div>
+        <div class="field">
+          <span class="field-label">Platforms</span>
+          <div class="chipset" id="menPlatforms"></div>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Per platform</span>
+            <input type="number" id="menPer" min="1" max="100" value="25">
+          </label>
+          <label class="field">
+            <span class="field-label">Recency</span>
+            <select id="menRecency">
+              <option value="any">Any time</option>
+              <option value="day">Past day</option>
+              <option value="week">Past week</option>
+              <option value="month">Past month</option>
+              <option value="year">Past year</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel-foot">
+          <button class="btn btn-primary" data-run="mentions">Discover mentions</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CAPTURE ========== -->
+    <section class="view" data-view="capture">
+      <header class="view-head">
+        <h1>Page capture</h1>
+        <p>Screenshot, raw HTML and parsed fields for a single URL — useful for
+           checking what the scraper actually saw.</p>
+      </header>
+      <div class="panel">
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">URL</span>
+            <input type="text" id="capUrl" placeholder="https://www.tiktok.com/@username">
+          </label>
+          <label class="field">
+            <span class="field-label">Mode</span>
+            <select id="capMode">
+              <option value="browser">Browser</option>
+              <option value="stealth">Stealth</option>
+              <option value="http">HTTP</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel-foot">
+          <label class="check"><input type="checkbox" id="capShot" checked><span>Screenshot</span></label>
+          <label class="check"><input type="checkbox" id="capFull" checked><span>Full page</span></label>
+          <button class="btn btn-primary" id="capBtn">Capture</button>
+        </div>
+      </div>
+      <div id="captureOut" class="capture-out"></div>
+    </section>
+
+    <!-- ========== HISTORY ========== -->
+    <section class="view" data-view="history">
+      <header class="view-head">
+        <h1>Run history</h1>
+        <p>Every run is saved. Reopen one to inspect or re-export it without scraping again.</p>
+      </header>
+      <div id="historyOut" class="history-list"></div>
+    </section>
+
+    <!-- ========== SCHEDULES ========== -->
+    <section class="view" data-view="schedules">
+      <header class="view-head">
+        <h1>Schedules</h1>
+        <p>Re-run the current form on an interval to track changes over time.</p>
+      </header>
+      <div class="panel">
+        <div class="grid-3">
+          <label class="field">
+            <span class="field-label">Name</span>
+            <input type="text" id="schedName" placeholder="Daily competitor check">
+          </label>
+          <label class="field">
+            <span class="field-label">From view</span>
+            <select id="schedKind">
+              <option value="scrape">Scrape</option>
+              <option value="discover">Discover</option>
+              <option value="lookalike">Lookalike</option>
+              <option value="posts">Posts</option>
+              <option value="mentions">Mentions</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Every (minutes)</span>
+            <input type="number" id="schedEvery" min="5" max="10080" value="1440">
+          </label>
+        </div>
+        <p class="side-hint">Uses whatever is currently filled in on that view's form.</p>
+        <div class="panel-foot">
+          <button class="btn btn-primary" id="schedBtn">Create schedule</button>
+        </div>
+      </div>
+      <div id="schedulesOut" class="history-list"></div>
+    </section>
+
+    <!-- ========== SHARED RESULTS ========== -->
+    <section id="results" class="results" hidden>
+      <div class="stats" id="stats"></div>
+
+      <div class="run-bar" id="runBar" hidden>
+        <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="run-label" id="runLabel">Running…</span>
+        <button class="btn btn-danger btn-sm" id="cancelBtn">Stop</button>
+      </div>
+
+      <div class="results-head">
+        <h2 id="resultsTitle">Results</h2>
+        <div class="results-tools">
+          <input type="search" id="filterBox" class="search" placeholder="Filter results…">
+          <div class="segmented segmented-sm" id="viewGroup">
+            <button class="seg is-active" data-layout="cards">Cards</button>
+            <button class="seg" data-layout="table">Table</button>
+            <button class="seg" data-layout="list">List</button>
+          </div>
+          <select id="exportFmt" class="search" aria-label="Export format">
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+            <option value="jsonl">JSON Lines</option>
+            <option value="xlsx">Excel</option>
+            <option value="md">Markdown</option>
+            <option value="html">HTML</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="exportBtn">Export</button>
+        </div>
+      </div>
+
+      <div id="resultsBody"></div>
+      <div id="logBox" class="logbox" hidden></div>
+    </section>
+
+    <div id="empty" class="empty">
+      <div class="empty-art" aria-hidden="true">🕸️</div>
+      <p>Run something to see results here.</p>
+    </div>
+
+  </main>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

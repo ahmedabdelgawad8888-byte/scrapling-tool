@@ -1,0 +1,43 @@
+services:
+  scrapling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scrapling-tool:latest
+    container_name: scrapling-app
+    ports:
+      - "7860:7860"
+    environment:
+      - STREAMLIT_SERVER_PORT=7860
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLECORS=false
+      - STREAMLIT_SERVER_ENABLEXSRFPROTECTION=false
+      # Uncomment and set these for production deployments
+      # - STREAMLIT_SERVER_SSLCERTFILE=/app/certs/cert.pem
+      # - STREAMLIT_SERVER_SSLKEYFILE=/app/certs/key.pem
+    volumes:
+      # Bind mount for development - hot reload
+      - .:/app
+      # Persistent volume for Streamlit cache
+      - streamlit-cache:/home/user/.streamlit
+    restart: unless-stopped
+    healthcheck:
+      # urllib, not requests: requests is not a declared dependency.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    # Uncomment for resource limits in production
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 1G
+
+volumes:
+  streamlit-cache:
+    driver: local

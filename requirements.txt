@@ -1,9 +1,20 @@
-streamlit>=1.31,<2
+# Web app (primary UI) — FastAPI backend + static single-page dashboard.
+# fastapi is declared explicitly: only starlette/uvicorn arrive transitively
+# via scrapling[all]'s MCP extra, so relying on that left the image without it.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+
+# Scraping engine
+scrapling[all]>=0.4.11,<0.5
+playwright>=1.40,<2
+
+# Data handling and exports
 pandas>=2.0,<3
 openpyxl>=3.1,<4
 tabulate>=0.9,<1
 pyarrow>=14
-scrapling[all]>=0.4.11,<0.5
+
+# Shared utilities
 click>=8.0,<9
 rich>=13.0,<16
 pydantic>=2.0,<3
@@ -11,4 +22,6 @@ markdownify>=0.11,<2
 httpx>=0.27,<1
 python-multipart>=0.0.9,<1
 platformdirs>=4.0,<5
-playwright>=1.40,<2
+
+# Legacy Streamlit dashboard, kept as a fallback front end
+streamlit>=1.31,<2

@@ -480,6 +480,23 @@ def _cache_key(url: str, mode: str) -> str:
     return hashlib.md5(f"{mode}:{url.lower().rstrip('/')}".encode()).hexdigest()
 
 
+def _cache_usable(data: object) -> bool:
+    """Reject cached rows that carry no usable data.
+
+    The database still holds empty profile rows written before soft-block
+    detection existed, when a captcha shell counted as a success. Serving
+    those would keep the old bug alive for anyone with a warm cache.
+    """
+    if not isinstance(data, dict) or data.get("blocked"):
+        return False
+    platform = str(data.get("platform") or "").lower()
+    evidence = _PROFILE_EVIDENCE.get(platform)
+    url = str(data.get("profile_url") or data.get("url") or "")
+    if evidence and url and _is_profile_url(url, platform):
+        return any(str(data.get(field) or "").strip() for field in evidence)
+    return True
+
+
 def _cache_get(url: str, mode: str) -> dict | None:
     key = _cache_key(url, mode)
     if key in _RESULT_CACHE:
@@ -496,6 +513,8 @@ def _cache_get(url: str, mode: str) -> dict | None:
                 row = cursor.fetchone()
                 if row:
                     data = json.loads(row[0])
+                    if not _cache_usable(data):
+                        return None
                     _RESULT_CACHE[key] = data
                     return data
             finally:
@@ -1597,15 +1616,26 @@ def parse_youtube(response, url: str) -> dict:
             pass
 
     # --- Stats from embedded JSON ---
-    m_subs = re.search(r'"subscriberCountText"[^}]*"simpleText"\s*:\s*"([^"]+)"', raw)
-    if not m_subs:
-        m_subs = re.search(r'"subscriberCountText"[^}]*"content"\s*:\s*"([^"]+)"', raw)
+    # The channel header states its own totals as metadataParts entries
+    # ("511M subscribers", "995 videos"). Every other "subscriberCountText" on
+    # the page belongs to a *recommended* channel in the sidebar, so matching
+    # that key first would silently report someone else's numbers.
+    m_subs = re.search(r'"content"\s*:\s*"([\d.,]+\s*[KMB]?)\s*subscribers?"', raw, re.I)
     if m_subs:
         result["subscribers"] = m_subs.group(1).strip()
 
-    m_videos = re.search(r'"videosCountText"[^}]*"simpleText"\s*:\s*"([^"]+)"', raw)
+    m_videos = re.search(r'"content"\s*:\s*"([\d.,]+\s*[KMB]?)\s*videos?"', raw, re.I)
     if m_videos:
         result["videos_count"] = m_videos.group(1).strip()
+
+    # Older layouts (and /channel/<id> URLs) still carry the classic keys; only
+    # trust them when the header above gave us nothing.
+    if not result["subscribers"]:
+        m_legacy = re.search(
+            r'"subscriberCountText"\s*:\s*\{[^{]*"simpleText"\s*:\s*"([^"]+)"', raw
+        )
+        if m_legacy:
+            result["subscribers"] = m_legacy.group(1).replace("subscribers", "").strip()
 
     m_country = re.search(r'"country"\s*:\s*"([^"]+)"', raw)
     if m_country:
@@ -1672,7 +1702,24 @@ def parse_twitter(response, url: str) -> dict:
     result["profile_pic"] = og_image or ""
     result["bio"] = og_desc or desc or ""
 
-    # --- Embedded JSON data ---
+    # --- Server-rendered stat blocks ---
+    # X serves logged-out visitors a static profile card where each count sits
+    # in a div immediately followed by its label div ("92.2M" + "Followers").
+    # The legacy JSON keys below are absent on that page, so without this the
+    # parser returns a name and bio with every count blank.
+    for value, label in re.findall(
+        r'>([\d.,]+\s*[KMB]?)</div><div[^>]*>(Followers|Following|Posts|Subscriptions)</div>',
+        raw,
+    ):
+        field = {
+            "Followers": "followers",
+            "Following": "following",
+            "Posts": "posts_count",
+        }.get(label)
+        if field and not result[field]:
+            result[field] = value.strip()
+
+    # --- Embedded JSON data (older layouts / authenticated responses) ---
     m_followers = re.search(r'"followers_count"\s*:\s*(\d+)', raw)
     if m_followers:
         result["followers"] = m_followers.group(1)
@@ -3292,6 +3339,101 @@ def _parse_for_url(resp, url: str) -> dict:
     return parse_generic(resp, url)
 
 
+# ---------------------------------------------------------------------------
+# Soft-block detection
+# ---------------------------------------------------------------------------
+# Social platforms answer bot traffic with HTTP 200 and a captcha or login
+# shell rather than an error code, so the status line alone cannot tell us
+# whether a fetch actually worked. Without this check a blocked TikTok fetch
+# looks like a clean success: auto-escalate never fires, the empty row is
+# cached forever, and the dashboard reports "200 OK" over no data at all.
+
+# Fields whose total absence proves the real profile page never rendered.
+_PROFILE_EVIDENCE: dict[str, tuple[str, ...]] = {
+    "tiktok": ("followers", "following", "likes", "videos_count"),
+    "instagram": ("followers", "following", "posts_count", "biography", "bio"),
+    "youtube": ("subscribers", "followers", "videos_count", "biography", "bio"),
+    "twitter": ("followers", "following", "biography", "bio"),
+    "snapchat": ("followers", "subscribers", "biography", "bio"),
+}
+
+# Substrings that appear on interstitials and never on a rendered profile.
+_CHALLENGE_MARKERS = (
+    "just a moment",
+    "checking your browser",
+    "attention required! | cloudflare",
+    "enable javascript and cookies to continue",
+    "unusual traffic from your computer",
+    "verify you are human",
+    "px-captcha",
+    "captcha-verify-page",
+    "/security-check",
+)
+
+# Statuses that mean "denied", as opposed to 404 which is a real answer.
+_BLOCK_STATUSES = frozenset({401, 403, 407, 429, 503})
+
+# What to show the operator when every mode came back blocked.
+_BLOCK_MESSAGES = {
+    "challenge_page": "blocked: captcha / bot challenge - try Stealth mode or a proxy",
+    "empty_profile": "blocked: page returned no profile data - try Browser or Stealth mode",
+    "http_401": "blocked: unauthorized (401) - login required",
+    "http_403": "blocked: forbidden (403) - try Stealth mode or a proxy",
+    "http_407": "blocked: proxy authentication required (407)",
+    "http_429": "blocked: rate limited (429) - slow down or use a proxy",
+    "http_503": "blocked: service unavailable (503) - retry later",
+}
+
+
+def _is_profile_url(url: str, platform: str) -> bool:
+    """True when the URL addresses a profile root rather than a single post.
+
+    Only profile roots are expected to carry follower counts, so post and
+    hashtag URLs must be exempt from the evidence check below.
+    """
+    segments = [s for s in _urlparse(url).path.split("/") if s]
+    if platform == "snapchat":
+        return len(segments) == 2 and segments[0] == "add"
+    if platform == "youtube":
+        if len(segments) == 2 and segments[0] in {"channel", "c", "user"}:
+            return True
+        # "/watch", "/shorts", "/results"… are pages, not channels.
+        return len(segments) == 1 and segments[0].lower().lstrip("@") not in _YT_RESERVED
+    if platform == "tiktok":
+        return len(segments) == 1 and segments[0].startswith("@")
+    if platform == "instagram":
+        return len(segments) == 1 and segments[0].lower() not in _IG_RESERVED
+    if platform == "twitter":
+        return len(segments) == 1 and segments[0].lower() not in _TW_RESERVED
+    return False
+
+
+def _block_reason(data: dict, resp, url: str) -> str:
+    """Name why a response is unusable, or return '' when it looks genuine.
+
+    A non-empty reason is what lets ``_scrape_one`` escalate to a real browser
+    and keeps the useless page out of the cache.
+    """
+    try:
+        status = int(getattr(resp, "status", 0) or data.get("status") or 0)
+    except (TypeError, ValueError):
+        status = 0
+    if status in _BLOCK_STATUSES:
+        return f"http_{status}"
+
+    haystack = _safe(getattr(resp, "body", ""))[:20000].lower()
+    for marker in _CHALLENGE_MARKERS:
+        if marker in haystack:
+            return "challenge_page"
+
+    platform = str(data.get("platform") or _platform_of(url) or "").lower()
+    evidence = _PROFILE_EVIDENCE.get(platform)
+    if evidence and _is_profile_url(url, platform):
+        if not any(str(data.get(field) or "").strip() for field in evidence):
+            return "empty_profile"
+    return ""
+
+
 async def _scrape_one(url: str, mode: str, timeout: int, sem, *, retries: int = 2,
                       auto_escalate: bool = False, use_cache: bool = True, options: dict = None) -> dict:
     """Fetch + parse a single URL with smart retries, optional mode escalation, and caching.
@@ -3369,7 +3511,10 @@ async def _scrape_one(url: str, mode: str, timeout: int, sem, *, retries: int = 
         modes_to_try = ["browser", "stealth"]
 
     total_attempts = 0
+    best: tuple | None = None      # (response, parsed) — first usable, else first blocked
+    blocked_reason = ""
     for current_mode in modes_to_try:
+        resp = None
         for attempt in range(retries + 1):
             total_attempts += 1
             try:
@@ -3428,14 +3573,7 @@ async def _scrape_one(url: str, mode: str, timeout: int, sem, *, retries: int = 
                             http3=http3
                         )
 
-                # Check if response indicates a login wall or block that might benefit from escalation
-                status = getattr(resp, "status", 0)
-                if status in (403, 429) and auto_escalate and current_mode != modes_to_try[-1]:
-                    _logger.debug(f"Got {status} in {current_mode} mode, escalating...")
-                    resp = None
-                    break  # Try next mode
-
-                break  # Success
+                break  # Fetched — the block check below decides if it is usable
             except Exception as e:
                 last_err = e
                 _logger.debug(f"Attempt {attempt + 1}/{retries + 1} ({current_mode}) failed: {e}")
@@ -3443,24 +3581,42 @@ async def _scrape_one(url: str, mode: str, timeout: int, sem, *, retries: int = 
                     # Exponential backoff with jitter
                     delay = (2 ** attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
-        if resp is not None:
-            break
+        if resp is None:
+            continue  # every attempt in this mode raised; try the next mode
 
-    if resp is None:
+        # A 200 that carries a captcha or an empty profile shell is not a
+        # success. Escalating on that — not just on 403/429 — is what makes
+        # auto-escalate work against TikTok and Instagram.
+        try:
+            parsed = _parse_for_url(resp, url)
+        except Exception as e:
+            parsed = {
+                "url": url, "username": username, "platform": platform,
+                "status": getattr(resp, "status", 0), "error": f"parse: {e}"[:300],
+            }
+        parsed.setdefault("platform", platform)
+        reason = _block_reason(parsed, resp, url)
+        if not reason:
+            blocked_reason = ""
+            best = (resp, parsed)
+            break
+        # Keep the first blocked attempt so we can still report something if
+        # every mode ends up blocked.
+        if best is None:
+            best = (resp, parsed)
+            blocked_reason = reason
+        _logger.debug(f"{current_mode} mode blocked ({reason}) for {url}")
+        resp = None
+
+    if best is None:
         return {
             "url": url, "username": username, "platform": platform,
-            "status": 0, "error": str(last_err)[:300],
+            "status": 0, "error": str(last_err)[:300] or "fetch failed",
             "response_time": round(time.perf_counter() - start, 2),
             "attempts": total_attempts,
         }
 
-    try:
-        data = _parse_for_url(resp, url)
-    except Exception as e:
-        data = {
-            "url": url, "username": username, "platform": platform,
-            "status": getattr(resp, "status", 0), "error": f"parse: {e}"[:300],
-        }
+    resp, data = best
     # Normalize and optionally augment with structured profile extraction
     data.setdefault("platform", platform)
     data.setdefault("username", username)
@@ -3468,8 +3624,17 @@ async def _scrape_one(url: str, mode: str, timeout: int, sem, *, retries: int = 
     data["response_time"] = round(time.perf_counter() - start, 2)
     data = _augment_with_profile(data, resp, url)
     data = _canonical_profile_fields(data)
+    data["attempts"] = total_attempts
 
-    # Store in cache
+    if blocked_reason:
+        # Say so plainly instead of returning blank fields under a 200.
+        data["blocked"] = blocked_reason
+        data["error"] = data.get("error") or _BLOCK_MESSAGES.get(
+            blocked_reason, f"blocked: {blocked_reason}"
+        )
+        # Caching this would pin the empty row in place for every later run.
+        return data
+
     if use_cache:
         _cache_set(url, mode, data)
 
@@ -3658,12 +3823,25 @@ def _canonical_profile_fields(data: dict) -> dict:
 
 
 def _scrape_stats(results: list[dict]) -> dict:
-    ok = sum(1 for r in results if r.get("status") == 200 and not r.get("error"))
-    errs = sum(1 for r in results if r.get("error") or r.get("status") != 200)
+    """Summarise a batch. A blocked row counts as blocked, never as a success.
+
+    ``ok`` deliberately excludes soft-blocked rows: they arrive as HTTP 200 and
+    would otherwise inflate the success count with pages that carry no data.
+    """
+    blocked = sum(1 for r in results if r.get("blocked"))
+    ok = sum(
+        1 for r in results
+        if r.get("status") == 200 and not r.get("error") and not r.get("blocked")
+    )
+    errs = sum(
+        1 for r in results
+        if not r.get("blocked") and (r.get("error") or r.get("status") != 200)
+    )
     with_data = sum(1 for r in results if r.get("followers") or r.get("subscribers"))
     times = [r["response_time"] for r in results if isinstance(r.get("response_time"), (int, float))]
     return {
-        "total": len(results), "ok": ok, "errors": errs, "withData": with_data,
+        "total": len(results), "ok": ok, "errors": errs, "blocked": blocked,
+        "withData": with_data,
         "avgTime": round(sum(times) / len(times), 2) if times else 0,
     }
 
