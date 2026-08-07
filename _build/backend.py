@@ -51,8 +51,24 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
 
 
 # Everything else (metadata preparation, build requirements) is plain setuptools.
-get_requires_for_build_wheel = _setuptools.get_requires_for_build_wheel
-get_requires_for_build_sdist = _setuptools.get_requires_for_build_sdist
-get_requires_for_build_editable = _setuptools.get_requires_for_build_editable
-prepare_metadata_for_build_wheel = _setuptools.prepare_metadata_for_build_wheel
-prepare_metadata_for_build_editable = _setuptools.prepare_metadata_for_build_editable
+def get_requires_for_build_wheel(config_settings=None):
+    _stage_dashboard()
+    return _setuptools.get_requires_for_build_wheel(config_settings)
+
+
+def get_requires_for_build_sdist(config_settings=None):
+    _stage_dashboard()
+    return _setuptools.get_requires_for_build_sdist(config_settings)
+
+
+def get_requires_for_build_editable(config_settings=None):
+    _stage_dashboard()
+    return _setuptools.get_requires_for_build_editable(config_settings)
+def prepare_metadata_for_build_wheel(metadata_directory, config_settings=None):
+    _stage_dashboard()
+    return _setuptools.prepare_metadata_for_build_wheel(metadata_directory, config_settings)
+
+
+def prepare_metadata_for_build_editable(metadata_directory, config_settings=None):
+    _stage_dashboard()
+    return _setuptools.prepare_metadata_for_build_editable(metadata_directory, config_settings)
