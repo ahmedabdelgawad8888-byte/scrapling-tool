@@ -42,17 +42,21 @@ _PALETTES: dict[str, dict[str, str]] = {
         "err": "#ef4444",
         "shadow": "0 1px 3px rgba(0,0,0,.45)",
     },
+    # Light mode follows Claude's palette: a warm paper background rather than a
+    # blue-grey one, near-black warm text, and clay as the accent. The greys are
+    # deliberately warm (slight red/yellow bias) — mixing them with cool greys is
+    # what makes a light theme look washed out.
     "light": {
-        "bg": "#f6f5fa",
+        "bg": "#faf9f7",
         "surface": "#ffffff",
-        "surface_alt": "#f0edf7",
-        "border": "#dcd6ea",
-        "text": "#17131f",
-        "muted": "#5d5674",
-        "primary": "#7c3aed",
-        "ok": "#059669",
-        "err": "#dc2626",
-        "shadow": "0 1px 3px rgba(23,19,31,.10)",
+        "surface_alt": "#f3f1ec",
+        "border": "#e5e2da",
+        "text": "#1f1e1d",
+        "muted": "#6b6761",
+        "primary": "#c96442",
+        "ok": "#2f7d5d",
+        "err": "#b4362f",
+        "shadow": "0 1px 2px rgba(31,30,29,.06)",
     },
 }
 
@@ -170,19 +174,68 @@ def inject_theme() -> None:
   .badge-ok {{ color: var(--sc-ok); font-weight: 600; }}
   .badge-err {{ color: var(--sc-err); font-weight: 600; }}
 
-  /* ---- Cards ---- */
+  /* ---- Cards ----
+     Each card is a <details>: the summary is the collapsed view and the click
+     target, the rest expands below it. Native disclosure rather than a Streamlit
+     control on purpose — Streamlit reruns the whole script on every widget
+     interaction, which would rebuild the grid and throw away scroll position
+     just to open one card. This is pure HTML, so it costs no round trip. */
   .sc-grid {{
     display: grid; gap: 14px;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     margin-top: .5rem;
+    align-items: start;   /* an opened card grows alone, without stretching its row */
   }}
   .sc-card {{
     background: var(--sc-surface);
     border: 1px solid var(--sc-border);
-    border-radius: 14px; padding: 14px;
+    border-radius: 14px;
     box-shadow: {p["shadow"]};
-    display: flex; flex-direction: column; gap: 10px;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }}
+  .sc-card:hover {{ border-color: var(--sc-primary); }}
+  .sc-card[open] {{ border-color: var(--sc-primary); }}
+  .sc-card > summary {{
+    cursor: pointer; padding: 14px; border-radius: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    list-style: none;                       /* Firefox */
+  }}
+  .sc-card > summary::-webkit-details-marker {{ display: none; }}  /* Safari/Chrome */
+  .sc-card > summary:focus-visible {{
+    outline: 2px solid var(--sc-primary); outline-offset: -2px;
+  }}
+  /* Chip and chevron share one right-aligned group, so the chevron still lands
+     on the right edge for records that have no platform chip. */
+  .sc-head-end {{
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+  }}
+  .sc-head-end .sc-chip {{ margin-left: 0; }}
+  .sc-chevron {{
+    color: var(--sc-muted); font-size: .68rem;
+    transition: transform .15s ease; display: inline-block;
+  }}
+  .sc-card[open] .sc-chevron {{ transform: rotate(180deg); }}
+
+  /* Expanded body: label/value pairs for everything not already on the face. */
+  .sc-more {{
+    border-top: 1px solid var(--sc-border);
+    padding: 12px 14px 14px; margin: 0 0 0 0;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px;
+    font-size: .78rem;
+  }}
+  .sc-k {{ color: var(--sc-muted); white-space: nowrap; }}
+  .sc-v {{ color: var(--sc-text); min-width: 0; overflow-wrap: anywhere; }}
+  .sc-v a {{ font-size: inherit; }}
+  .sc-full {{
+    grid-column: 1 / -1; color: var(--sc-text);
+    line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+  }}
+  .sc-sec {{
+    grid-column: 1 / -1; color: var(--sc-muted);
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
+    margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--sc-border);
+  }}
+  .sc-sec:first-child {{ margin-top: 0; padding-top: 0; border-top: 0; }}
   .sc-card-head {{ display: flex; align-items: center; gap: 10px; }}
   .sc-avatar {{
     width: 44px; height: 44px; border-radius: 50%; flex: 0 0 44px;
@@ -239,6 +292,8 @@ def fmt_count(val: Any) -> str:
         n = int(float(str(val).replace(",", "").strip() or 0))
     except (TypeError, ValueError):
         return str(val or "")
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f}B"
     if n >= 1_000_000:
         return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
@@ -291,15 +346,140 @@ def _title_of(rec: dict) -> str:
     return name
 
 
-def _card_html(rec: dict) -> str:
+# Everything already visible on the collapsed card, so the expanded body does not
+# repeat it. Bio is here because the face shows a truncated copy; the full text is
+# re-added below whenever it was actually cut.
+_FACE_KEYS = frozenset({
+    "full_name", "title", "username", "platform", "followers", "following",
+    "likes", "avg_views", "biography", "bio", "description", "emails", "error",
+    "profile_url", "url", "avatar_url", "profile_pic", "profile_pic_hd",
+    "is_verified", "is_private",
+})
+
+# Fields worth seeing first. Anything not listed still renders, just afterwards,
+# so a new field added to the scraper shows up without touching this.
+_DETAIL_ORDER = (
+    "profile_category", "posts_count", "videos_count", "subscribers",
+    "country", "city", "phone_numbers", "is_business", "logged_in", "license",
+    "hashtags", "recent_posts",
+    "tiktok_links", "instagram_links", "twitter_links", "snapchat_links",
+    "other_links", "links",
+    "status", "response_time", "attempts", "blocked",
+)
+
+_LABELS = {
+    "profile_category": "Category",
+    "posts_count": "Posts",
+    "videos_count": "Videos",
+    "subscribers": "Subscribers",
+    "phone_numbers": "Phone",
+    "is_business": "Business account",
+    "logged_in": "Logged in",
+    "tiktok_links": "TikTok links",
+    "instagram_links": "Instagram links",
+    "twitter_links": "Twitter/X links",
+    "snapchat_links": "Snapchat links",
+    "other_links": "Other links",
+    "status": "HTTP status",
+    "response_time": "Response time",
+    "text_content": "Page text",
+    "headers": "Response headers",
+    "recent_posts": "Recent posts",
+}
+
+
+def _label_for(key: str) -> str:
+    return _LABELS.get(key) or key.replace("_", " ").capitalize()
+
+
+def _short_url(url: str) -> str:
+    trimmed = url.split("://", 1)[-1].rstrip("/")
+    return trimmed if len(trimmed) <= 40 else trimmed[:37] + "…"
+
+
+def _fmt_detail(key: str, val: Any) -> str:
+    """One value as display-safe HTML. Links stay clickable, lists stay readable."""
+    if isinstance(val, bool):
+        return "Yes" if val else "No"
+    if isinstance(val, (list, tuple)):
+        items = [v for v in val if v not in (None, "", {}, [])]
+        if not items:
+            return ""
+        if key == "links" or key.endswith("_links"):
+            return " · ".join(
+                f'<a href="{html.escape(str(v), quote=True)}" target="_blank"'
+                f' rel="noopener">{html.escape(_short_url(str(v)))}</a>'
+                for v in items[:8]
+            )
+        if all(isinstance(v, dict) for v in items):
+            return html.escape("; ".join(
+                str(v.get("caption") or v.get("url") or v)[:70] for v in items[:5]
+            ))
+        return html.escape(", ".join(str(v) for v in items[:12]))
+    if isinstance(val, dict):
+        return html.escape(json.dumps(val, default=str)[:300])
+    text = str(val)
+    return html.escape(text if len(text) <= 400 else text[:400] + "…")
+
+
+def _detail_html(rec: dict) -> str:
+    """The expanded half: full bio, every remaining scraped field, profile link."""
+    parts: list[str] = ['<div class="sc-more">']
+
+    bio = str(_first(rec, "biography", "bio", "description"))
+    if len(bio) > 180:  # the face truncates at 180, so only add it back when cut
+        parts.append('<div class="sc-sec">Bio</div>')
+        parts.append(f'<div class="sc-full">{html.escape(bio)}</div>')
+
+    emails = [e for e in (rec.get("emails") or []) if e]
+    if len(emails) > 2:  # the face shows at most two
+        parts.append('<div class="sc-k">All emails</div>')
+        parts.append(f'<div class="sc-v">{html.escape(", ".join(str(e) for e in emails))}</div>')
+
+    ordered = [k for k in _DETAIL_ORDER if k in rec]
+    rest = sorted(k for k in rec if k not in _DETAIL_ORDER)
+    seen: set[str] = set()
+    rows: list[str] = []
+    for key in (*ordered, *rest):
+        if key in seen or key.startswith("_") or key in _FACE_KEYS:
+            continue
+        seen.add(key)
+        val = rec.get(key)
+        if val is None or val == "" or val == [] or val == {}:
+            continue
+        rendered = _fmt_detail(key, val)
+        if not rendered:
+            continue
+        rows.append(f'<div class="sc-k">{html.escape(_label_for(key))}</div>')
+        rows.append(f'<div class="sc-v">{rendered}</div>')
+
+    if rows:
+        parts.append('<div class="sc-sec">Details</div>')
+        parts.extend(rows)
+
+    # The profile link lives here rather than on the face: a link inside <summary>
+    # both follows itself and toggles the card open, which reads as a glitch.
     url = str(_first(rec, "profile_url", "url"))
+    if url:
+        safe = html.escape(url, quote=True)
+        parts.append(
+            f'<div class="sc-full"><a href="{safe}" target="_blank" '
+            f'rel="noopener">Open profile ↗</a></div>'
+        )
+
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _card_html(rec: dict) -> str:
     handle = str(_first(rec, "username"))
     platform = str(_first(rec, "platform"))
     bio = str(_first(rec, "biography", "bio", "description"))
     emails = rec.get("emails") or []
 
     parts = [
-        '<div class="sc-card">',
+        '<details class="sc-card">',
+        "<summary>",
         '<div class="sc-card-head">',
         _avatar(rec),
         "<div>",
@@ -308,8 +488,11 @@ def _card_html(rec: dict) -> str:
     if handle:
         parts.append(f'<div class="sc-handle">@{html.escape(handle)}</div>')
     parts.append("</div>")
+    parts.append('<span class="sc-head-end">')
     if platform:
         parts.append(f'<span class="sc-chip">{html.escape(platform)}</span>')
+    parts.append('<span class="sc-chevron">▼</span>')
+    parts.append("</span>")
     parts.append("</div>")
 
     parts.append(_stat_chips(rec))
@@ -320,10 +503,10 @@ def _card_html(rec: dict) -> str:
         parts.append(f'<div class="sc-handle">✉️ {html.escape(joined)}</div>')
     if rec.get("error"):
         parts.append(f'<div class="badge-err">⚠ {html.escape(str(rec["error"])[:90])}</div>')
-    if url:
-        safe = html.escape(url, quote=True)
-        parts.append(f'<a href="{safe}" target="_blank" rel="noopener">Open profile ↗</a>')
-    parts.append("</div>")
+    parts.append("</summary>")
+
+    parts.append(_detail_html(rec))
+    parts.append("</details>")
     return "".join(parts)
 
 
