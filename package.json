@@ -1,0 +1,6 @@
+{
+  "name": "scrapling-tool-smarterasp",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Compatibility marker for SmarterASP.NET GitHub deployment; Railpack builds this repository with its Python provider."
+}
