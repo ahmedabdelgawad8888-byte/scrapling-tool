@@ -21,6 +21,7 @@ let stage = "Starting the application";
 let detail = "";
 let backendReady = false;
 let backendProcess = null;
+let nodeFallback = null;
 
 function safeDetail(value) {
   return String(value || "")
@@ -88,6 +89,10 @@ function runPython(python, args, env) {
 }
 
 function proxyRequest(request, response) {
+  if (nodeFallback) {
+    nodeFallback.handle(request, response);
+    return;
+  }
   if (!backendReady) {
     response.statusCode = 503;
     response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -121,6 +126,15 @@ function proxyRequest(request, response) {
     response.end(JSON.stringify({ status: "error", stage, detail }));
   });
   request.pipe(upstream);
+}
+
+function activateNodeFallback(reason) {
+  if (nodeFallback) return;
+  const { createNodeFallback } = require("./smarterasp_node_app");
+  nodeFallback = createNodeFallback({ appRoot });
+  stage = "Ready (Node HTTP-only mode)";
+  detail = safeDetail(reason);
+  console.log(`${stage}: ${detail}`);
 }
 
 const server = http.createServer(proxyRequest);
@@ -157,7 +171,8 @@ async function bootstrap() {
 
     const python = findPython();
     if (!python) {
-      throw new Error("Python 3 is not available in this hosting plan.");
+      activateNodeFallback("Python 3 is not available in this hosting plan.");
+      return;
     }
     const env = pythonEnvironment();
 
@@ -205,19 +220,17 @@ async function bootstrap() {
     });
     backendProcess.on("exit", (code) => {
       backendReady = false;
-      stage = "FastAPI stopped";
-      detail = `Exit code ${code}`;
+      activateNodeFallback(`FastAPI stopped with exit code ${code}`);
     });
     waitForBackend();
   } catch (error) {
-    stage = "Startup failed";
-    detail = safeDetail(error.message || error);
-    console.error(stage, detail);
+    activateNodeFallback(error.message || error);
   }
 }
 
 function shutdown() {
   if (backendProcess && !backendProcess.killed) backendProcess.kill();
+  if (nodeFallback) nodeFallback.close();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }

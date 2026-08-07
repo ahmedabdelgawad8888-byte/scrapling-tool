@@ -5,6 +5,7 @@
   "description": "Compatibility marker and Windows IIS launcher for SmarterASP.NET deployment.",
   "main": "smarterasp_server.js",
   "scripts": {
-    "start": "node smarterasp_server.js"
+    "start": "node smarterasp_server.js",
+    "test": "node --test tests/smarterasp_node_app.test.js"
   }
 }
