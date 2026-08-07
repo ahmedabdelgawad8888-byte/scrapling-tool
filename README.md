@@ -13,6 +13,46 @@ short_description: Scrape profiles, discover creators, and find lookalikes
 <!-- The block above is Hugging Face Space metadata; GitHub renders it as a
      table. Keeping it here means `git push hf master:main` deploys as-is. -->
 
+## Dashboard
+
+The app at `/` is a single-page dashboard served by FastAPI (`webapp/`), built
+on the Scrapling engine in `ultra_scraper.py`:
+
+| View | What it does |
+| --- | --- |
+| **Scrape** | Profile and page URLs in bulk; results stream in one at a time |
+| **Discover** | Find creators by keyword across TikTok, Instagram, YouTube, X, Snapchat |
+| **Lookalike** | Seed profiles in, similar creators out |
+| **Posts** | Posts by named creators matching hashtags or mentions |
+| **Mentions** | Creators talking about a brand, plus the posts that prove it |
+| **Capture** | Screenshot, raw HTML and parsed fields for a single URL |
+| **History** | Every run saved to SQLite; reopen or re-export without re-scraping |
+| **Schedules** | Re-run a query on an interval to track change over time |
+
+Three fetch modes, all Scrapling: **HTTP** (`AsyncFetcher`, impersonated TLS),
+**Browser** (`DynamicFetcher`), **Stealth** (`StealthyFetcher`). Auto-escalate
+retries a blocked fetch in the next mode up.
+
+### Blocked results
+
+TikTok and Instagram answer bot traffic with HTTP 200 and a captcha or login
+shell. The app detects that and labels the row **Blocked** instead of
+reporting an empty success, and blocked rows are never cached. When you see
+them, switch to Stealth mode, lower the concurrency, or set a proxy.
+
+### Running it
+
+```bash
+pip install -r requirements.txt
+python -m playwright install chromium          # browser/stealth modes
+uvicorn webapp.server:create_app --factory --port 7860
+```
+
+Or `docker compose up`. Set `SCRAPLING_DATA_DIR` to a mounted volume to keep
+run history across restarts — container filesystems are ephemeral.
+
+`streamlit_app.py` is kept as a fallback front end.
+
 <!-- mcp-name: io.github.D4Vinci/Scrapling -->
 
 <h1 align="center">
