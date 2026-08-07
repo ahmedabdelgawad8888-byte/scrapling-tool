@@ -9,6 +9,8 @@ Streamlit Community Cloud, where Chromium is fetched at runtime instead.
 from __future__ import annotations
 
 import asyncio
+import hmac
+import os
 import subprocess
 import sys
 import time
@@ -66,6 +68,43 @@ st.set_page_config(
 
 # Theme (dark by default, switchable from the sidebar) — see app_ui.
 app_ui.inject_theme()
+
+
+# ---------------------------------------------------------------------------
+# Auth gate
+# ---------------------------------------------------------------------------
+# Streamlit Community Cloud serves apps publicly by default, and every control
+# below can launch a scrape that runs from this host's IP address. Set a
+# password to gate it — either `password` in .streamlit/secrets.toml (which is
+# how Streamlit Cloud injects secrets) or the SCRAPLING_PASSWORD env var, the
+# same variable the FastAPI dashboard uses. Left unset the app stays open, so
+# local runs are unchanged.
+def _check_password() -> bool:
+    try:
+        expected = st.secrets.get("password", "")
+    except Exception:
+        # No secrets.toml exists at all, which is normal when running locally.
+        expected = ""
+    expected = expected or os.getenv("SCRAPLING_PASSWORD", "")
+    if not expected:
+        return True
+    if st.session_state.get("_authenticated"):
+        return True
+
+    st.title("🔒 Scrapling Tool")
+    st.caption("This dashboard is password protected.")
+    entered = st.text_input("Password", type="password", key="_password_input")
+    if entered:
+        # compare_digest so a wrong password cannot be recovered by timing.
+        if hmac.compare_digest(entered, str(expected)):
+            st.session_state["_authenticated"] = True
+            st.rerun()
+        st.error("Incorrect password.")
+    return False
+
+
+if not _check_password():
+    st.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +288,8 @@ with st.sidebar:
 
     col_r, col_e = st.columns(2)
     with col_r:
-        retries = st.number_input("Retries", 0, 5, 2)
+        # Default 3: TikTok returns a hydrated page roughly one try in three.
+        retries = st.number_input("Retries", 0, 5, 3)
     with col_e:
         # On by default wherever a browser exists: TikTok and Instagram answer
         # HTTP-only fetches with a captcha shell, so without escalation those

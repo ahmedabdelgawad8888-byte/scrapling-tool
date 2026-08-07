@@ -15,6 +15,8 @@ import contextlib
 import io
 import json
 import logging
+import os
+import secrets
 import sys
 import tempfile
 import time
@@ -56,10 +58,20 @@ class FetchOptions(BaseModel):
     mode: str = "http"
     timeout: int = 30
     concurrency: int = 10
-    retries: int = 1
+    # 3 rather than 1 because TikTok serves a fully-hydrated page only about one
+    # request in three; each attempt is an independent draw, so four tries lifts
+    # the odds from ~55% to ~80%. Retries only fire when a page comes back
+    # blocked or empty, so pages that work first time cost nothing extra.
+    retries: int = 3
     auto_escalate: bool = True
     use_cache: bool = True
     proxy: str = ""
+    # On by default because TikTok (and any SPA that hydrates late) serves a bare
+    # ~16KB shell on first paint and only injects __UNIVERSAL_DATA_FOR_REHYDRATION__
+    # once its XHRs settle. Sampling the DOM before then yields a page that parses
+    # to an empty profile, which reads as a block but is really a timing problem.
+    # Costs a few seconds per page in browser/stealth; ignored by http mode.
+    network_idle: bool = True
 
 
 class JobRequest(BaseModel):
@@ -129,7 +141,7 @@ def _effective_mode(mode: str) -> str:
 
 
 def _fetch_opts(opt: FetchOptions) -> dict:
-    return {"proxy": opt.proxy, "headless": True}
+    return {"proxy": opt.proxy, "headless": True, "network_idle": opt.network_idle}
 
 
 # ---------------------------------------------------------------------------
@@ -461,6 +473,49 @@ def create_app() -> FastAPI:
     manager = JobManager()
     store.init()
     U._db_init()
+
+    # -- auth --------------------------------------------------------------
+    # Set SCRAPLING_PASSWORD to put the dashboard behind HTTP Basic. It stays off
+    # when unset so local runs keep working unchanged, but any deployment that is
+    # reachable from outside must set it: every route below can start jobs that
+    # scrape from this machine's IP address.
+    #
+    # Basic rather than a token header because the results stream is an
+    # EventSource, which cannot send custom headers — browsers replay Basic
+    # credentials on it automatically, so SSE keeps working with no client change.
+    _auth_user = os.getenv("SCRAPLING_USER", "admin")
+    _auth_password = os.getenv("SCRAPLING_PASSWORD", "")
+    _OPEN_PATHS = frozenset({"/healthz"})  # host probes must stay reachable
+
+    if _auth_password:
+        @app.middleware("http")
+        async def _require_auth(request: Request, call_next):
+            if request.url.path in _OPEN_PATHS:
+                return await call_next(request)
+            supplied = ""
+            scheme, _, encoded = request.headers.get("authorization", "").partition(" ")
+            if scheme.lower() == "basic":
+                with contextlib.suppress(Exception):
+                    supplied = base64.b64decode(encoded).decode("utf-8")
+            user, _, password = supplied.partition(":")
+            # Both halves compared regardless of the first result: a short-circuit
+            # would leak whether the username was right via response timing.
+            user_ok = secrets.compare_digest(user, _auth_user)
+            password_ok = secrets.compare_digest(password, _auth_password)
+            if not (user_ok and password_ok):
+                return JSONResponse(
+                    {"detail": "Unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="Scrapling Tool"'},
+                )
+            return await call_next(request)
+
+        _log.info("auth: HTTP Basic enabled (user %r)", _auth_user)
+    else:
+        _log.warning(
+            "auth: SCRAPLING_PASSWORD is unset — dashboard is OPEN to anyone who "
+            "can reach it. Set it before exposing this port."
+        )
 
     # -- job lifecycle -----------------------------------------------------
     async def _execute(job: Job, opt: FetchOptions, label: str, schedule_id: str = "") -> None:
