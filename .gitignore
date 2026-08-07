@@ -37,6 +37,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.smarterasp-python/
+data/
 
 # C extensions
 *.so
