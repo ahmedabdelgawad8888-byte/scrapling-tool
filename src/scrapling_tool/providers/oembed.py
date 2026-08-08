@@ -10,7 +10,9 @@ YouTube oEmbed: https://www.youtube.com/oembed?url=<video_url>&format=json
 """
 from __future__ import annotations
 
+import re
 from typing import Any, ClassVar
+from urllib.parse import urlparse
 
 import httpx
 
@@ -19,6 +21,20 @@ from scrapling_tool.providers.base import FetchResult, Provider, ProviderError, 
 
 class _OembedBase(Provider):
     _endpoint: ClassVar[str] = ""
+    # Hosts this endpoint will actually answer for. Without this, the base
+    # class's permissive can_handle() advertises every oEmbed provider as a
+    # candidate for every URL, so the fallback chain wastes an HTTP round trip
+    # asking TikTok to describe an Instagram profile before moving on.
+    _hosts: ClassVar[re.Pattern[str] | None] = None
+
+    def can_handle(self, url: str) -> bool:
+        if self._hosts is None:
+            return False
+        try:
+            host = (urlparse(url).hostname or "").lower()
+        except ValueError:
+            return False
+        return bool(self._hosts.search(host))
 
     def fetch(self, url: str, **opts: Any) -> FetchResult:
         if not self._endpoint:
@@ -50,6 +66,7 @@ class TikTokOembedProvider(_OembedBase):
     priority: ClassVar[int] = 10
     free: ClassVar[bool] = True
     _endpoint: ClassVar[str] = "https://www.tiktok.com/oembed"
+    _hosts: ClassVar[re.Pattern[str]] = re.compile(r"(?:^|\.)tiktok\.com$", re.I)
 
 
 class YouTubeOembedProvider(_OembedBase):
@@ -57,6 +74,9 @@ class YouTubeOembedProvider(_OembedBase):
     priority: ClassVar[int] = 10
     free: ClassVar[bool] = True
     _endpoint: ClassVar[str] = "https://www.youtube.com/oembed"
+    _hosts: ClassVar[re.Pattern[str]] = re.compile(
+        r"(?:^|\.)(?:youtube\.com|youtu\.be)$", re.I
+    )
 
 
 register(TikTokOembedProvider())

@@ -136,3 +136,6 @@ instagram_pages_structured/
 # Config files with potential secrets
 config.yaml
 config.py
+
+# archived legacy artifacts (see _archive/README.md)
+_archive/

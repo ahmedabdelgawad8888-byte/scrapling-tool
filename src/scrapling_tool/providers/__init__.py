@@ -26,10 +26,14 @@ from scrapling_tool.providers import (
     jsonld,  # noqa: F401
     oembed,  # noqa: F401
     rss,  # noqa: F401
+    scrapegraph,  # noqa: F401
     scraperapi,  # noqa: F401
     scrapingbee,  # noqa: F401
     scrapling_provider,  # noqa: F401
+    serpapi,  # noqa: F401
+    serper,  # noqa: F401
     sitemap,  # noqa: F401
+    tavily,  # noqa: F401
 )
 from scrapling_tool.providers.base import (
     FetchResult,
@@ -41,6 +45,16 @@ from scrapling_tool.providers.base import (
     register,
 )
 
+# Imported after the provider modules above so the registry is populated before
+# the chain ranks it.
+from scrapling_tool.providers.chain import (  # noqa: E402
+    candidates_for,
+    fetch_with_fallback,
+    looks_blocked,
+    provider_health,
+    set_recorder,
+)
+
 __all__ = [
     "FetchResult",
     "Provider",
@@ -49,4 +63,9 @@ __all__ = [
     "get_provider",
     "list_providers",
     "pick_provider",
+    "candidates_for",
+    "fetch_with_fallback",
+    "looks_blocked",
+    "provider_health",
+    "set_recorder",
 ]

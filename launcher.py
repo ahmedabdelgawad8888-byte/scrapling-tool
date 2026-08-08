@@ -104,7 +104,12 @@ def main():
 
     # --- Launch server ---
     print(f"[4/4] Starting server on http://127.0.0.1:{port}")
-    server_cmd = [str(python_exe), "ultra_scraper.py", "web", "--port", str(port)]
+    server_cmd = [
+        str(python_exe), "-m", "uvicorn",
+        "webapp.server:app",
+        "--host", "127.0.0.1",
+        "--port", str(port),
+    ]
     process = subprocess.Popen(
         server_cmd,
         stdout=subprocess.DEVNULL,

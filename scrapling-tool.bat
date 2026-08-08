@@ -75,14 +75,12 @@ echo [scrapling-tool] Starting web UI on http://%HOST%:%PORT%/
 REM ensure a browser is available for the scrapling fetchers
 "%VENV_PY%" -c "import playwright" >nul 2>&1
 if errorlevel 1 (
-    echo [scrapling-tool] Installing Playwright browser (Chromium)...
+    echo [scrapling-tool] Installing Playwright browser...
     "%VENV_PY%" -m playwright install chromium
 )
 
-REM open the browser once uvicorn is up (give it ~2s)
-if "%OPEN_BROWSER%"=="1" (
-    start "" /b cmd /c "timeout /t 2 /nobreak >nul & start http://%HOST%:%PORT%/"
-)
+REM open the browser once the server is up
+if "%OPEN_BROWSER%"=="1" start "" cmd /c "timeout /t 3 /nobreak >nul 2>&1 & start "" http://%HOST%:%PORT%/"
 
 "%VENV_SERVE%" --host %HOST% --port %PORT%
 popd
@@ -98,7 +96,7 @@ endlocal
 goto :eof
 
 :install
-echo [scrapling-tool] Installing Playwright browser (Chromium)...
+echo [scrapling-tool] Installing Playwright browser...
 "%VENV_PY%" -m playwright install chromium
 popd
 endlocal

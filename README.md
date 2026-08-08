@@ -48,8 +48,38 @@ python -m playwright install chromium          # browser/stealth modes
 uvicorn webapp.server:create_app --factory --port 7860
 ```
 
-Or `docker compose up`. Set `SCRAPLING_DATA_DIR` to a mounted volume to keep
-run history across restarts — container filesystems are ephemeral.
+Or `docker compose up`.
+
+### Where run history lives
+
+By default, history and schedules go to SQLite next to the app, so
+`SCRAPLING_DATA_DIR` must point at a mounted volume or every run is lost on
+restart — container filesystems are ephemeral.
+
+Set `SUPABASE_DB_URL` (or `DATABASE_URL`) to a Postgres connection string and
+the store moves there instead, surviving redeploys and idle spin-downs on hosts
+with no persistent disk:
+
+```bash
+export SUPABASE_DB_URL='postgresql://...'   # Supabase: Project Settings → Database
+uvicorn webapp.server:create_app --factory --port 7860
+```
+
+The tables live in a dedicated `scrapling` schema, not `public`, so PostgREST
+never exposes run history to the project's anon key.
+
+The backend is chosen once at startup and reported by `/api/stats` as
+`store.backend`. If the DSN is unreachable the app logs the failure and falls
+back to SQLite rather than refusing to boot — check that field if you expect
+Postgres and history is still vanishing.
+
+To verify the Postgres path end to end:
+
+```bash
+SUPABASE_DB_URL='postgresql://...' pytest tests/webapp/test_store_postgres.py
+```
+
+Those tests are skipped when no DSN is set.
 
 `streamlit_app.py` is kept as a fallback front end.
 

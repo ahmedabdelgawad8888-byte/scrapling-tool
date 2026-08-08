@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from scrapling_tool import credentials
 from scrapling_tool.providers import (
     FetchResult,
     ProviderError,
@@ -23,6 +24,22 @@ from scrapling_tool.providers.direct import DirectProvider
 from scrapling_tool.providers.jsonld import JsonLdProvider
 from scrapling_tool.providers.rss import RssProvider
 from scrapling_tool.providers.sitemap import SitemapProvider
+
+
+@pytest.fixture
+def keyed_providers():
+    """Give every keyed provider a dummy credential for the duration of a test.
+
+    These tests mock the HTTP layer, so the key's value is irrelevant — but the
+    providers refuse to build a request without one. Injecting a fake here is
+    what keeps the suite from depending on a real credential being configured,
+    which is how four of these tests used to pass.
+    """
+    credentials.load_overrides({name: f"test-{name}-key" for name in credentials.PROVIDERS})
+    try:
+        yield
+    finally:
+        credentials.load_overrides({})
 
 
 def test_registry_has_core_providers() -> None:
@@ -215,3 +232,92 @@ def test_provider_abstract_base() -> None:
     # ProviderError is the public surface — confirm it's importable and
     # distinct from generic exceptions
     assert issubclass(ProviderError, RuntimeError)
+
+
+def test_new_ai_and_search_providers_registered() -> None:
+    names = {p.name for p in list_providers()}
+    for expected in ("tavily", "serper", "serpapi", "scrapegraph"):
+        assert expected in names, f"missing provider: {expected}"
+
+
+def test_tavily_provider_fetch_mocked(keyed_providers) -> None:
+    from scrapling_tool.providers.tavily import TavilyProvider
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "results": [{"url": "https://example.com/test", "raw_content": "Extracted text content"}]
+    }
+    fake_response.headers = {}
+    fake_client = MagicMock()
+    fake_client.__enter__ = MagicMock(return_value=fake_client)
+    fake_client.__exit__ = MagicMock(return_value=False)
+    fake_client.post.return_value = fake_response
+
+    with patch("httpx.Client", return_value=fake_client):
+        res = TavilyProvider().fetch("https://example.com/test")
+    assert res.provider == "tavily"
+    assert res.status == 200
+    assert "Extracted text content" in res.text
+
+
+def test_serper_provider_fetch_mocked(keyed_providers) -> None:
+    from scrapling_tool.providers.serper import SerperProvider
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "organic": [{"title": "Search Result", "link": "https://example.com"}]
+    }
+    fake_response.headers = {}
+    fake_client = MagicMock()
+    fake_client.__enter__ = MagicMock(return_value=fake_client)
+    fake_client.__exit__ = MagicMock(return_value=False)
+    fake_client.post.return_value = fake_response
+
+    with patch("httpx.Client", return_value=fake_client):
+        res = SerperProvider().fetch("https://example.com")
+    assert res.provider == "serper"
+    assert res.status == 200
+    assert res.meta["organic"][0]["title"] == "Search Result"
+
+
+def test_serpapi_provider_fetch_mocked(keyed_providers) -> None:
+    from scrapling_tool.providers.serpapi import SerpApiProvider
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "organic_results": [{"title": "SerpResult", "link": "https://example.com/serp"}]
+    }
+    fake_response.headers = {}
+    fake_client = MagicMock()
+    fake_client.__enter__ = MagicMock(return_value=fake_client)
+    fake_client.__exit__ = MagicMock(return_value=False)
+    fake_client.get.return_value = fake_response
+
+    with patch("httpx.Client", return_value=fake_client):
+        res = SerpApiProvider().fetch("https://example.com/serp")
+    assert res.provider == "serpapi"
+    assert res.status == 200
+    assert res.meta["organic_results"][0]["title"] == "SerpResult"
+
+
+def test_scrapegraph_provider_fetch_mocked(keyed_providers) -> None:
+    from scrapling_tool.providers.scrapegraph import ScrapeGraphProvider
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {"result": "Scraped AI output"}
+    fake_response.headers = {}
+    fake_client = MagicMock()
+    fake_client.__enter__ = MagicMock(return_value=fake_client)
+    fake_client.__exit__ = MagicMock(return_value=False)
+    fake_client.post.return_value = fake_response
+
+    with patch("httpx.Client", return_value=fake_client):
+        res = ScrapeGraphProvider().fetch("https://example.com/ai")
+    assert res.provider == "scrapegraph"
+    assert res.status == 200
+    assert "Scraped AI output" in res.text
+
