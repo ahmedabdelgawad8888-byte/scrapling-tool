@@ -3,695 +3,502 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TRYGC - System Upgrade Meeting | اجتماع ترقية النظام</title>
+<title>TRYGC — Grand Community System Upgrade | ترقية نظام العمليات</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
+/* ===== TRYGC / Grand Community Brand Export V001 =====
+  Primary      GC Orange  #FF5D00  RGB 255·93·0  PMS Bright Orange C  - 25%
+  Support      GC Navy    #1F2A3D  RGB 31·42·61  PMS P 8-96 C         - 15%
+  Support      GC Tan     #D9B48F  RGB 217·180·143 PMS P 12-179 C     - 5%
+  Paper        White      #FFFFFF  - 55% dominant (light mode)
+  Tints allowed only via opacity for data viz / UI backgrounds
+  Type: Bliss (Latin) / TheSansArabic (AR) -> Fallback Arial / Arabic Transparent (Cairo)
+*/
 :root{
-  --bg: #FFFEFB;
-  --bg2: #FFF8E6;
-  --card: #FFFFFF;
-  --ink: #121212;
-  --ink-soft: #6B6575;
-  --ink-faint: #9C97A8;
-  --line: #F0EAD6;
-  --line-strong: #E8E0C8;
-  --accent: #FFCC00;
-  --accent-2: #FFD93D;
-  --accent-ink: #121212;
-  --accent-wash: #FFF4B3;
-  --black: #111111;
-  --shadow: 0 20px 60px rgba(18,18,18,0.06), 0 2px 8px rgba(18,18,18,0.04);
-  --radius: 28px;
-  --radius-sm: 16px;
-  --radius-pill: 999px;
+  --gc-orange: #FF5D00;
+  --gc-navy: #1F2A3D;
+  --gc-tan: #D9B48F;
+  --gc-white: #FFFFFF;
+  --gc-paper: #FFFFFF;
+  --gc-bg: #FFFFFF;
+  --gc-bg-warm: #FFF8F3; /* Orange 4% on white */
+  --gc-orange-6: #FFF1EB; /* orange 10% */
+  --gc-orange-12: #FFE4D6;
+  --gc-orange-20: #FFD0BA;
+  --gc-orange-muted: #FFEEE6;
+  --gc-navy-5: #F3F4F6;
+  --gc-navy-8: #EDEEF2;
+  --gc-navy-12: #E3E6EB;
+  --gc-navy-60: rgba(31,42,61,0.6);
+  --gc-navy-35: rgba(31,42,61,0.35);
+  --gc-navy-10: rgba(31,42,61,0.08);
+  --gc-navy-6: rgba(31,42,61,0.06);
+  --gc-tan-10: #F8F1E9;
+  --gc-tan-20: #F1E6D8;
+  --gc-tan-35: rgba(217,180,143,0.35);
+  --gc-line: #EDE4D8; /* tan + navy blend */
+  --gc-line-strong: #DDD0BE;
+  --ink: var(--gc-navy);
+  --ink-soft: rgba(31,42,61,0.62);
+  --ink-faint: rgba(31,42,61,0.40);
+  --shadow: 0 24px 64px rgba(31,42,61,0.07), 0 4px 16px rgba(31,42,61,0.04);
+  --shadow-lg: 0 32px 80px rgba(31,42,61,0.10);
+  --r-lg: 26px;
+  --r-md: 16px;
+  --r-pill: 999px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
 body{
-  background: var(--bg);
+  background: var(--gc-bg);
   color: var(--ink);
-  font-family: 'Instrument Sans', system-ui, sans-serif;
-  overflow:hidden;
-  height:100vh; width:100vw;
-  display:flex; flex-direction:column;
+  font-family: Arial, 'Instrument Sans', system-ui, sans-serif;
+  overflow:hidden; display:flex; flex-direction:column;
+  -webkit-font-smoothing: antialiased;
 }
-.ar{font-family:'Cairo', sans-serif; direction:rtl; text-align:right;}
-.en{font-family:'Instrument Sans', sans-serif; direction:ltr; text-align:left;}
-
-/* masthead */
+.ar{font-family:'Cairo', 'TheSansArabic', Tahoma, sans-serif; direction:rtl; text-align:right;}
+.en{font-family: Arial, 'Bliss', 'Instrument Sans', sans-serif; direction:ltr; text-align:left;}
+/* ===== MASTHEAD - TRYGC Light Mode ===== */
 .masthead{
-  height:64px;
+  height:68px; flex:0 0 68px;
   display:flex; align-items:center; justify-content:space-between;
   padding:0 28px;
-  border-bottom:1px solid var(--line);
-  background: rgba(255,254,251,0.9);
-  backdrop-filter: blur(12px);
-  position:relative; z-index:20;
+  background: var(--gc-white);
+  border-bottom: 1.5px solid var(--gc-line);
+  position:relative; z-index:30;
 }
-.mast-left{display:flex; align-items:center; gap:16px;}
-.logo{
-  width:42px; height:42px; border-radius:12px;
-  background: var(--black);
-  color: var(--accent);
+.mast-left{display:flex; align-items:center; gap:18px;}
+.brandmark{
+  display:flex; align-items:center; gap:12px;
+}
+.logo-box{
+  width:44px; height:44px; border-radius:12px;
+  background: var(--gc-navy);
   display:grid; place-items:center;
-  font-weight:800; letter-spacing:-0.02em; font-size:14px;
-  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.2);
+  position:relative; isolation:isolate;
+  box-shadow: 0 2px 10px rgba(31,42,61,0.18);
 }
-.logo span{transform: translateY(-1px);}
-.mast-title{line-height:1.1}
-.mast-title b{display:block; font-size:14px; font-weight:700; letter-spacing:-0.01em;}
-.mast-title em{display:block; font-style:normal; font-size:11px; color:var(--ink-soft); font-weight:500; letter-spacing:0.02em;}
-.mast-right{display:flex; align-items:center; gap:12px;}
-.chip{
-  height:32px; padding:0 14px; border-radius:var(--radius-pill);
-  border:1px solid var(--line); background:var(--card);
-  display:inline-flex; align-items:center; gap:8px;
-  font-size:11px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase;
+.logo-box i{
+  position:absolute; width:10px; height:10px; border-radius:50%;
+  background: var(--gc-orange); top:7px; right:7px;
+  box-shadow: 0 0 0 3px rgba(255,93,0,0.22);
 }
-.chip .dot{width:6px; height:6px; background:#10B981; border-radius:50%; box-shadow:0 0 0 3px rgba(16,185,129,0.15);}
-.chip.live{ background:var(--black); color:white; border-color:var(--black);}
-.tag-accent{
-  background:var(--accent); color:var(--black);
-  border:1px solid var(--accent);
-  padding:5px 10px; border-radius:var(--radius-pill);
-  font-size:10px; font-weight:800; letter-spacing:0.08em;
+.logo-box span{
+  color: var(--gc-white); font-weight:800; font-size:14px; letter-spacing:-0.02em;
+  font-family: Arial, sans-serif;
 }
+.brand-text{line-height:1.05}
+.brand-text b{display:block; font-size:14.5px; font-weight:800; letter-spacing:-0.02em; color:var(--gc-navy);}
+.brand-text .sub{display:block; font-size:11px; font-weight:600; color:var(--ink-soft); margin-top:2px; letter-spacing:0.01em;}
+.brand-text .sub small{font-weight:700; color:var(--gc-orange);}
+.mast-center{
+  display:flex; align-items:center; gap:10px;
+  position:absolute; left:50%; transform:translateX(-50%);
+}
+.ratio{
+  display:flex; align-items:center; gap:6px; height:30px;
+  background: var(--gc-navy-5); border:1px solid var(--gc-navy-8);
+  border-radius:var(--r-pill); padding:0 4px 0 12px;
+}
+.ratio b{font-family:'JetBrains Mono'; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-faint);}
+.ratio .bar{display:flex; gap:2px; margin-left:6px}
+.ratio .bar i{display:block; height:18px; border-radius:3px}
+.ratio .bar i:nth-child(1){width:28px; background:var(--gc-white); border:1px solid var(--gc-line)}
+.ratio .bar i:nth-child(2){width:14px; background:var(--gc-orange)}
+.ratio .bar i:nth-child(3){width:9px; background:var(--gc-navy)}
+.ratio .bar i:nth-child(4){width:5px; background:var(--gc-tan)}
 
-.progress{
-  height:3px; background:var(--line);
-  position:relative; overflow:hidden;
+.mast-right{display:flex; align-items:center; gap:10px;}
+.chip{
+  height:32px; padding:0 13px; border-radius:var(--r-pill);
+  border:1.5px solid var(--gc-line); background:var(--gc-white);
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:11px; font-weight:700; letter-spacing:0.02em;
+  font-family:'JetBrains Mono', monospace; text-transform:uppercase;
 }
-.progress i{
-  position:absolute; left:0; top:0; bottom:0;
-  background: var(--black);
-  transition: width 0.6s cubic-bezier(.7,.1,.3,1);
-}
+.chip .dot{width:7px; height:7px; border-radius:50%; background:var(--gc-orange); box-shadow:0 0 0 4px var(--gc-orange-6); animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 4px var(--gc-orange-6)}50%{box-shadow:0 0 0 6px var(--gc-orange-6)}}
+.chip.orange{background:var(--gc-orange); color:white; border-color:var(--gc-orange); }
+.chip.navy{background:var(--gc-navy); color:white; border-color:var(--gc-navy);}
+.chip.tan{background:var(--gc-tan-10); color:var(--gc-navy); border-color:var(--gc-tan-20);}
+
+/* progress */
+.progress{height:3px; background:var(--gc-navy-5); position:relative}
+.progress i{position:absolute; left:0; top:0; bottom:0; background:var(--gc-orange); transition: width .6s cubic-bezier(.7,.1,.3,1); width:20%}
 
 /* stage */
 .stage{
   flex:1; position:relative; overflow:hidden;
-  display:flex; align-items:center; justify-content:center;
   background:
-    radial-gradient(1200px 600px at 20% -10%, #FFF0A8 0%, rgba(255,240,168,0) 60%),
-    radial-gradient(900px 500px at 85% 10%, #FFF5D1 0%, rgba(0,0,0,0) 60%),
-    var(--bg);
+    radial-gradient(1200px 600px at 18% -10%, var(--gc-orange-6) 0%, transparent 60%),
+    radial-gradient(900px 500px at 88% 0%, var(--gc-tan-10) 0%, transparent 60%),
+    radial-gradient(1000px 800px at 50% 120%, var(--gc-navy-6) 0%, transparent 60%),
+    var(--gc-bg);
+  display:flex; align-items:center; justify-content:center;
 }
 .slide{
-  position:absolute; inset:22px;
-  display:none;
-  grid-template-columns: 400px 1fr;
-  gap:20px;
+  position:absolute; inset:20px 20px 20px 20px;
+  display:none; grid-template-columns: 380px 1fr; gap:18px;
 }
-.slide.active{display:grid; animation: slideIn 0.7s cubic-bezier(.16,1,.3,1) both;}
-@keyframes slideIn{
-  from{transform: translateY(16px) scale(0.98); opacity:0}
-  to{transform: translateY(0) scale(1); opacity:1}
-}
+.slide.active{display:grid; animation: in .68s cubic-bezier(.16,1,.3,1) both;}
+@keyframes in{from{transform: translateY(14px) scale(.985); opacity:0} to{transform:translateY(0) scale(1); opacity:1}}
 
 /* left rail */
 .rail{
-  background:var(--card);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
+  background: var(--gc-white);
+  border:1.5px solid var(--gc-line);
+  border-radius:var(--r-lg);
   box-shadow: var(--shadow);
-  padding:24px;
+  padding:24px 22px 20px;
   display:flex; flex-direction:column; justify-content:space-between;
-  position:relative; overflow:hidden;
+  overflow:hidden; position:relative;
 }
-.rail::after{
-  content:''; position:absolute; top:-40%; right:-30%; width:80%; height:80%;
-  background: radial-gradient(circle at center, var(--bg2), transparent 70%);
+.rail::before{
+  content:''; position:absolute; inset:auto -30% -30% auto; width:70%; height:55%;
+  background: radial-gradient(400px 300px at 80% 20%, var(--gc-orange-6), transparent 70%);
   pointer-events:none;
 }
 .rail-top{position:relative; z-index:1;}
-.kicker{
-  display:flex; align-items:center; gap:10px; margin-bottom:22px;
+.kicker{display:flex; gap:8px; align-items:center; margin-bottom:18px;}
+.kicker .num{
+  font-family:'JetBrains Mono'; font-size:11px; font-weight:700;
+  letter-spacing:0.08em; background:var(--gc-navy); color:white;
+  padding:6px 10px; border-radius:var(--r-pill);
 }
-.kicker span:first-child{
-  font-family:'JetBrains Mono', monospace;
-  font-size:11px; font-weight:600;
-  letter-spacing:0.12em; text-transform:uppercase;
-  background:var(--black); color:white;
-  padding:6px 10px; border-radius:var(--radius-pill);
-}
-.kicker span:last-child{
-  font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-soft);
-}
+.kicker .cat{font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint);}
 .rail h2{
-  font-size:36px; line-height:0.95; letter-spacing:-0.03em; font-weight:800;
-  margin-bottom:14px;
+  font-size:38px; line-height:0.92; letter-spacing:-0.04em; font-weight:800;
+  margin-bottom:14px; font-family: Arial, 'Bliss', sans-serif;
 }
-.rail h2 i{
-  font-style:normal; display:block;
-  color: transparent;
-  -webkit-text-stroke: 1px var(--ink);
-  opacity:0.25;
-}
-.rail h2 b{display:block; font-weight:800;}
-.rail .desc-en{
-  font-size:13.5px; line-height:1.6; color:var(--ink-soft);
-  margin-bottom:20px; max-width:32ch;
-}
-.rail .desc-ar{
-  font-size:13px; line-height:1.8; color:var(--ink-soft);
-  border-top:1px dashed var(--line);
-  padding-top:16px;
-}
+.rail h2 i{font-style:normal; display:block; font-weight:800;
+  color: transparent; -webkit-text-stroke: 1.2px var(--gc-navy); opacity:0.22;}
+.rail h2 b{display:block; color:var(--gc-navy);}
+.rail h2 b.accent{color:var(--gc-orange);}
+.desc-en{font-size:13px; line-height:1.6; color:var(--ink-soft); margin-bottom:18px}
+.desc-ar{font-size:12.5px; line-height:1.85; color:var(--ink-soft); border-top:1.5px dashed var(--gc-line); padding-top:14px}
 
-.rail-bottom{display:flex; flex-direction:column; gap:14px; position:relative; z-index:1;}
-.stat-row{display:flex; gap:10px;}
+.rail-bottom{position:relative; z-index:1; display:flex; flex-direction:column; gap:12px;}
+.stats{display:flex; gap:10px;}
 .stat{
-  flex:1; background:var(--bg); border:1px solid var(--line);
-  border-radius:14px; padding:12px 14px;
+  flex:1; background:var(--gc-bg-warm); border:1.5px solid var(--gc-line);
+  border-radius:14px; padding:11px 12px;
 }
-.stat label{display:block; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700; color:var(--ink-faint); margin-bottom:4px;}
-.stat b{display:block; font-size:13px; font-weight:700; letter-spacing:-0.01em;}
-.badge-row{display:flex; gap:8px; flex-wrap:wrap;}
+.stat label{display:block; font-family:'JetBrains Mono'; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700; color:var(--ink-faint); margin-bottom:3px}
+.stat b{display:block; font-size:12.5px; font-weight:800; letter-spacing:-0.01em; color:var(--gc-navy);}
+.badges{display:flex; gap:6px; flex-wrap:wrap}
 
 /* main card */
 .main{
-  background:var(--card);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
+  background: var(--gc-white);
+  border:1.5px solid var(--gc-line);
+  border-radius:var(--r-lg);
   box-shadow: var(--shadow);
-  padding:26px 28px 22px;
-  display:flex; flex-direction:column;
-  overflow:hidden;
-  position:relative;
+  display:flex; flex-direction:column; overflow:hidden;
 }
-.main-header{
+.main-head{
   display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
-  margin-bottom:18px;
-  padding-bottom:18px;
-  border-bottom:1px solid var(--line);
+  padding:22px 26px 18px; border-bottom:1.5px solid var(--gc-line);
+  background: linear-gradient(180deg, var(--gc-white), var(--gc-bg-warm));
 }
-.main-header h3{
-  font-size:17px; font-weight:700; letter-spacing:-0.02em; line-height:1.2;
-}
-.main-header h3 span{color:var(--ink-faint); font-weight:500; font-size:13px; display:block; margin-top:4px;}
-.main-header .main-header-ar{ text-align:right; }
-.mini-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; flex:1;}
-.col{display:flex; flex-direction:column; gap:14px;}
-.col-en{border-right:1px solid var(--line); padding-right:18px;}
-.col-ar{padding-left:4px;}
+.main-head h3{font-size:16px; font-weight:800; letter-spacing:-0.02em; line-height:1.25; color:var(--gc-navy);}
+.main-head h3 span{display:block; font-size:12.5px; font-weight:500; color:var(--ink-soft); margin-top:4px; letter-spacing:0}
+.main-head-ar{text-align:right}
+.main-body{flex:1; padding:18px 20px 18px; display:grid; grid-template-columns:1fr 1fr; gap:18px; overflow:auto}
+.col{display:flex; flex-direction:column; gap:12px}
+.col-en{border-right:1.5px solid var(--gc-line); padding-right:18px}
+.col-ar{padding-left:2px}
 
-/* components */
+/* cardlets — only palette colors */
 .cardlet{
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:14px 14px;
-  background: linear-gradient(180deg, #FFFEFB, #FFFDF5);
+  border:1.5px solid var(--gc-line); border-radius:16px;
+  padding:13px 14px; background: var(--gc-white);
   position:relative;
 }
-.cardlet.accented{
-  background: var(--black);
-  color:white;
-  border-color:var(--black);
-}
-.cardlet.accented p{color:rgba(255,255,255,0.7)}
-.cardlet-accent{
-  background:var(--accent-wash);
-  border-color: var(--line-strong);
-}
-.cardlet h4{font-size:12px; font-weight:700; letter-spacing:-0.01em; margin-bottom:6px; display:flex; align-items:center; gap:8px;}
-.cardlet p{font-size:12px; line-height:1.6; color:var(--ink-soft);}
-.cardlet ul{list-style:none; margin-top:8px; display:flex; flex-direction:column; gap:6px;}
-.cardlet li{
-  font-size:11.5px; line-height:1.4; display:flex; gap:8px; align-items:flex-start;
-  color:var(--ink);
-}
-.cardlet li::before{content:''; flex:0 0 5px; width:5px; height:5px; margin-top:6px; border-radius:50%; background:var(--accent); border:1px solid var(--black);}
-.cardlet.accented li::before{background:var(--accent);}
-.icon{
-  width:24px; height:24px; border-radius:8px; display:grid; place-items:center;
-  font-size:12px; background:var(--card); border:1px solid var(--line);
-}
-.cardlet.accented .icon{background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.15); color:white;}
-
-.flow{
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-}
+.cardlet.orange-tint{background: var(--gc-orange-6); border-color: var(--gc-orange-12);}
+.cardlet.navy{background: var(--gc-navy); color:white; border-color:var(--gc-navy);}
+.cardlet.navy p{color:rgba(255,255,255,0.68)}
+.cardlet.navy .icon{background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.14); color:white}
+.cardlet.tan{background: var(--gc-tan-10); border-color: var(--gc-tan-20);}
+.cardlet h4{font-size:11.5px; font-weight:800; letter-spacing:-0.01em; margin-bottom:6px; display:flex; align-items:center; gap:8px; text-transform:uppercase; line-height:1.3}
+.cardlet.accent-h h4{color:var(--gc-orange)}
+.cardlet.navy h4{color:white}
+.cardlet p{font-size:11.8px; line-height:1.6; color:var(--ink-soft);}
+.cardlet ul{list-style:none; margin-top:8px; display:flex; flex-direction:column; gap:5px}
+.cardlet li{font-size:11.2px; line-height:1.45; display:flex; gap:8px; align-items:flex-start; color:var(--ink);}
+.cardlet.navy li{color:rgba(255,255,255,0.9)}
+.cardlet li::before{content:''; flex:0 0 6px; width:6px; height:6px; margin-top:5px; border-radius:50%; background:var(--gc-orange); border:1px solid var(--gc-navy);}
+.cardlet.navy li::before{background:var(--gc-orange); border-color:var(--gc-orange)}
+.icon{width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-size:12px; background:var(--gc-white); border:1.5px solid var(--gc-line); flex:0 0 26px}
+.flow{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px}
 .flow-item{
-  border:1px solid var(--line); background:var(--card);
-  border-radius:999px; padding:7px 12px;
-  font-size:11px; font-weight:600; display:inline-flex; gap:6px; align-items:center;
+  border:1.5px solid var(--gc-line); background:var(--gc-white); border-radius:999px; padding:6px 11px;
+  font-size:10.5px; font-weight:700; display:inline-flex; gap:5px; align-items:center; font-family:'JetBrains Mono', monospace; letter-spacing:-0.01em;
 }
-.flow-item b{font-weight:800;}
-.flow-arrow{color:var(--ink-faint);}
+.flow-item.orange{background:var(--gc-orange); color:white; border-color:var(--gc-orange)}
+.flow-item.navy{background:var(--gc-navy); color:white; border-color:var(--gc-navy)}
+.flow-item.tan{background:var(--gc-tan); color:var(--gc-navy); border-color:var(--gc-tan)}
+.flow-arrow{color:var(--ink-faint); font-size:12px}
 
-/* slide 1 hero */
-.hero-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
-.hero-number{font-family:'JetBrains Mono'; font-size:82px; font-weight:800; line-height:0.8; letter-spacing:-0.06em;}
-.hero-number small{font-size:14px; letter-spacing:0.02em; vertical-align:super; margin-left:6px; background:var(--accent); padding:4px 8px; border-radius:999px; color:var(--black);}
-
-.timeline{position:relative; padding-left:16px; border-left:1px dashed var(--line-strong); display:flex; flex-direction:column; gap:16px;}
-.timeline .node{position:relative; padding-left:14px;}
-.timeline .node::before{content:''; position:absolute; left:-21px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--card); border:2px solid var(--black);}
-.timeline .node.active::before{background:var(--accent);}
+/* special components */
+.big-num{font-family:'JetBrains Mono'; font-size:56px; font-weight:800; line-height:0.85; letter-spacing:-0.05em; color:var(--gc-navy);}
+.big-num small{font-size:11px; letter-spacing:0.06em; vertical-align:super; margin-left:6px; background:var(--gc-orange); color:white; padding:4px 8px; border-radius:999px; font-weight:700}
+.triple{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+.timeline{position:relative; padding-left:16px; border-left:1.5px dashed var(--gc-line-strong); display:flex; flex-direction:column; gap:14px; margin-top:10px}
+.tl-node{position:relative; padding-left:10px}
+.tl-node::before{content:''; position:absolute; left:-20px; top:3px; width:10px; height:10px; border-radius:50%; background:var(--gc-white); border:2px solid var(--gc-navy);}
+.tl-node.active::before{background:var(--gc-orange); border-color:var(--gc-orange); box-shadow:0 0 0 4px var(--gc-orange-6)}
+.legend{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.legend span{height:26px; padding:0 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:700; font-family:'JetBrains Mono'; border:1.5px solid var(--gc-line)}
+.legend span i{width:8px; height:8px; border-radius:50%; display:block}
 
 /* controls */
-.controls{
-  position:absolute; right:22px; bottom:22px; z-index:10;
-  display:flex; align-items:center; gap:12px;
-}
-.btn{
-  width:44px; height:44px; border-radius:999px;
-  border:1px solid var(--line);
-  background:var(--card);
-  display:grid; place-items:center;
-  cursor:pointer; box-shadow: var(--shadow);
-  transition: all .2s;
-}
-.btn:hover{transform: translateY(-1px); border-color:var(--black);}
-.btn:active{transform: scale(0.96);}
-.btn.primary{background:var(--black); color:white; border-color:var(--black);}
-.pill-indicators{
-  display:flex; gap:6px; background:var(--card); border:1px solid var(--line);
-  padding:6px; border-radius:999px; box-shadow: var(--shadow);
-}
-.pill-indicators button{
-  width:30px; height:30px; border-radius:999px; border:0; background:transparent;
-  font-family:'JetBrains Mono'; font-size:11px; font-weight:700; cursor:pointer; color:var(--ink-faint);
-  transition: all .2s;
-}
-.pill-indicators button.active{background:var(--black); color:white;}
+.controls{position:absolute; right:20px; bottom:18px; z-index:20; display:flex; align-items:center; gap:10px}
+.btn{width:44px; height:44px; border-radius:999px; border:1.5px solid var(--gc-line); background:var(--gc-white); display:grid; place-items:center; cursor:pointer; box-shadow: var(--shadow); transition:all .2s; font-weight:700}
+.btn:hover{transform:translateY(-1px); border-color:var(--gc-navy)}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--gc-navy); color:white; border-color:var(--gc-navy)}
+.btn.orange{background:var(--gc-orange); color:white; border-color:var(--gc-orange)}
+.dots{display:flex; gap:5px; background:var(--gc-white); border:1.5px solid var(--gc-line); padding:5px; border-radius:999px; box-shadow: var(--shadow);}
+.dots button{width:34px; height:32px; border-radius:999px; border:0; background:transparent; font-family:'JetBrains Mono'; font-size:11px; font-weight:700; cursor:pointer; color:var(--ink-faint); transition:.2s}
+.dots button.active{background:var(--gc-navy); color:white}
+.dots button.orange-active.active{background:var(--gc-orange)}
 
-/* responsive */
-@media (max-width: 1080px){
-  .slide{grid-template-columns: 1fr; overflow:auto; inset:12px;}
-  .col-en{border-right:0; border-bottom:1px solid var(--line); padding-right:0; padding-bottom:18px;}
-  .rail{padding:20px;}
-  .rail h2{font-size:28px;}
-  .hero-number{font-size:58px;}
+/* brand footer */
+.brand-footer{position:absolute; bottom:0; left:0; right:0; height:4px; display:flex}
+.brand-footer i:nth-child(1){flex:55; background:var(--gc-white); border-top:1.5px solid var(--gc-line)}
+.brand-footer i:nth-child(2){flex:25; background:var(--gc-orange)}
+.brand-footer i:nth-child(3){flex:15; background:var(--gc-navy)}
+.brand-footer i:nth-child(4){flex:5; background:var(--gc-tan)}
+
+@media (max-width:1080px){
+  .slide{grid-template-columns:1fr; overflow:auto; inset:12px 12px 72px 12px}
+  .col-en{border-right:0; border-bottom:1.5px solid var(--gc-line); padding-right:0; padding-bottom:16px}
+  .rail h2{font-size:30px}
+  .main-body{grid-template-columns:1fr}
+  .mast-center{display:none}
+  .big-num{font-size:44px}
 }
 </style>
 </head>
 <body>
-
 <div class="masthead">
   <div class="mast-left">
-    <div class="logo"><span>TRYGC</span></div>
-    <div class="mast-title">
-      <b>TRYGC Operation System — Upgrade</b>
-      <em>Admin Dashboard & WhatsApp Pro / ترقية نظام التشغيل</em>
+    <div class="brandmark">
+      <div class="logo-box"><i></i><span>GC</span></div>
+      <div class="brand-text">
+        <b>TRYGC · Grand Community</b>
+        <span class="sub"><small>TRYGC OPERATION SYSTEM</small> — Admin Dashboard & WhatsApp Pro Upgrade</span>
+      </div>
+    </div>
+  </div>
+  <div class="mast-center">
+    <div class="ratio">
+      <b>Suggested Ratio</b>
+      <div class="bar"><i title="White 55%"></i><i title="Orange 25%"></i><i title="Navy 15%"></i><i title="Tan 5%"></i></div>
     </div>
   </div>
   <div class="mast-right">
-    <div class="chip"><span class="dot"></span> Light Mode System</div>
-    <div class="chip live">LIVE • TODAY</div>
-    <div class="tag-accent">CONFIDENTIAL</div>
+    <span class="chip"><span class="dot"></span> Light Mode — Paper 55%</span>
+    <span class="chip orange">GC ORANGE #FF5D00</span>
+    <span class="chip navy">LIVE • TODAY</span>
   </div>
+  <div class="brand-footer"><i></i><i></i><i></i><i></i></div>
 </div>
-<div class="progress"><i id="progressBar" style="width:20%"></i></div>
+<div class="progress"><i id="bar"></i></div>
 
 <div class="stage">
 
-  <!-- SLIDE 1 : THE STRATEGIC SHIFT -->
-  <div class="slide active" data-index="0">
-    <div class="rail">
-      <div class="rail-top">
-        <div class="kicker"><span>01 / 05</span><span>Strategy / الاستراتيجية</span></div>
-        <h2><i>THE SHIFT</i><b>Replace<br>Sheets with<br>System.</b></h2>
-        <p class="desc-en">We are moving from fragmented Dropbox sheets to a single, centralized Confirmation Sheet directly on the Admin Dashboard — a single source of truth for all campaign operations.</p>
-        <p class="desc-ar ar">ننتقل من شيتات دروب بوكس المبعثرة إلى مكان موحّد ومركزي على لوحة التحكم - Confirmation Sheet - يكون المصدر الوحيد للحقيقة لكل عمليات الحملة.</p>
-      </div>
-      <div class="rail-bottom">
-        <div class="stat-row">
-          <div class="stat"><label>Current</label><b>Dropbox Sheets</b></div>
-          <div class="stat"><label>Target</label><b>Admin Dashboard</b></div>
-        </div>
-        <div class="badge-row">
-          <span class="chip">Single Source of Truth</span><span class="chip">TRYGC Light</span>
-        </div>
-      </div>
+<!-- 01 STRATEGIC SHIFT -->
+<div class="slide active" data-i="0">
+  <div class="rail">
+    <div class="rail-top">
+      <div class="kicker"><span class="num">01 / 05</span><span class="cat">Strategy · الاستراتيجية</span></div>
+      <h2><i>THE SHIFT</i><b>Replace<br>Sheets<br><b class="accent">with System.</b></b></h2>
+      <p class="desc-en">Moving from fragmented Dropbox Sheets to one centralized <b>Confirmation Sheet</b> on Admin Dashboard — single source of truth for all ops.</p>
+      <p class="desc-ar ar">ننتقل من شيتات دروب بوكس المبعثرة إلى مكان موحّد على لوحة التحكم - Confirmation Sheet - مصدر واحد للحقيقة لكل عمليات الحملة.</p>
     </div>
-    <div class="main">
-      <div class="main-header">
-        <div><h3>Core Objective <span>The why behind this upgrade</span></h3></div>
-        <div class="main-header-ar ar"><h3>الهدف الأساسي<br><span style="font-size:12px; color:var(--ink-soft)">لماذا نقوم بهذه الترقية؟</span></h3></div>
+    <div class="rail-bottom">
+      <div class="stats"><div class="stat"><label>Current</label><b>Dropbox Sheets</b></div><div class="stat"><label>Target</label><b>Admin Dashboard</b></div></div>
+      <div class="badges"><span class="chip tan">White 55% Paper</span><span class="chip orange">Orange 25%</span><span class="chip navy">Navy 15%</span></div>
+      <div class="legend"><span><i style="background:var(--gc-orange)"></i> #FF5D00 Orange</span><span><i style="background:var(--gc-navy)"></i> #1F2A3D Navy</span><span><i style="background:var(--gc-tan)"></i> #D9B48F Tan</span></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="main-head">
+      <div><h3>Core Objective <span>Why we are replacing external sheets — usage ratio enforced</span></h3></div>
+      <div class="main-head-ar ar"><h3>الهدف الأساسي<br><span>لماذا نستبدل الشيتات الخارجية؟ بنسبة استخدام معتمدة</span></h3></div>
+    </div>
+    <div class="main-body">
+      <div class="col col-en">
+        <div class="cardlet navy">
+          <h4><span class="icon">◑</span> Problem Today</h4>
+          <p>Operation depends on external Dropbox / Sheets. No live sync from WA Pro, Dashboard, Coverage. Manual = errors + delay.</p>
+          <ul><li>Scattered sheets, no central logic</li><li>No auto-sync between modules</li><li>High risk if file corrupt / offline</li></ul>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+          <div class="cardlet"><div class="big-num">100%<small>SYNC</small></div><p style="margin-top:8px">All modules feed one Confirmation Sheet automatically.</p></div>
+          <div class="cardlet orange-tint"><h4>Feeds</h4><div class="flow"><span class="flow-item navy">WA Pro</span><span class="flow-arrow">→</span><span class="flow-item">Coverage</span><span class="flow-arrow">→</span><span class="flow-item orange">Confirmation</span></div><p style="margin-top:8px">Coverage + WhatsApp Pro + Dashboard → single sheet.</p></div>
+        </div>
       </div>
-      <div class="mini-grid">
-        <div class="col col-en">
-          <div class="cardlet accented">
-            <h4><span class="icon">◑</span> The Problem Today</h4>
-            <p>Operation relies on external Dropbox / Sheets. No live sync from WhatsApp Pro, Dashboard, or Coverage modules. Manual updates = errors, delays.</p>
-            <ul>
-              <li>Scattered sheets, no central logic</li>
-              <li>No auto-sync between modules</li>
-              <li>High risk if file corrupted / offline</li>
-            </ul>
-          </div>
-          <div class="hero-grid">
-            <div class="cardlet"><div class="hero-number">100%<small>SYNC</small></div><p style="margin-top:8px">All campaign modules feed one Confirmation Sheet automatically.</p></div>
-            <div class="cardlet cardlet-accent">
-              <h4>Modules Connected</h4>
-              <div class="flow" style="margin-top:10px">
-                <span class="flow-item"><b>WA Pro</b></span><span class="flow-arrow">→</span>
-                <span class="flow-item"><b>Coverage</b></span><span class="flow-arrow">→</span>
-                <span class="flow-item" style="background:var(--accent)">Confirmation</span>
-              </div>
-              <p style="margin-top:10px">Coverage + WhatsApp Pro + Dashboard dump into one sheet.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col col-ar">
-          <div class="cardlet ar">
-            <h4>المشكلة الحالية <span class="icon">◑</span></h4>
-            <p>الاعتماد على دروب بوكس والشيتات الخارجية. لا يوجد تزامن مباشر من واتساب برو أو الكوفرج. التحديث اليدوي يسبب أخطاء وتأخير.</p>
-            <ul>
-              <li>شيتات متفرقة بدون منطق مركزي</li>
-              <li>لا يوجد تحديث تلقائي بين الموديولز</li>
-              <li>خطر عالي في حالة تلف الملف أو انقطاع الاتصال</li>
-            </ul>
-          </div>
-          <div class="cardlet cardlet-accent ar">
-            <h4>الرؤية الجديدة <span class="icon">✦</span></h4>
-            <p>مكان خاص ومجمّع على السيستم مباشرةً داخل Admin Dashboard. كل Update من Invitation أو Coverage يسمع تلقائياً في Confirmation Sheet.</p>
-            <div class="timeline" style="margin-top:12px">
-              <div class="node active ar"><b>المركزي:</b> شيت واحد لكل الـ Workflow</div>
-              <div class="node ar"><b>التلقائي:</b> التعديل الأساسي Automatic</div>
-              <div class="node ar"><b>المرن:</b> Manual مسموح للحالات الخاصة</div>
-            </div>
-          </div>
-        </div>
+      <div class="col col-ar">
+        <div class="cardlet ar"><h4>المشكلة الحالية <span class="icon">◑</span></h4><p>اعتماد على دروب بوكس والشيتات الخارجية. لا يوجد تزامن مباشر من واتساب برو أو الكوفرج. التحديث اليدوي يسبب أخطاء.</p><ul><li>شيتات متفرقة بدون منطق مركزي</li><li>لا يوجد تحديث تلقائي بين الموديولز</li><li>خطر عالي إذا تلف الملف أو انقطع الاتصال</li></ul></div>
+        <div class="cardlet tan ar"><h4>الرؤية الجديدة <span class="icon">✦</span></h4><p>مكان خاص مجمّع على السيستم مباشرة داخل Admin Dashboard. كل Update من Invitation أو Coverage يسمع تلقائياً.</p><div class="timeline"><div class="tl-node active ar"><b>المركزي:</b> شيت واحد لكل الـ Workflow</div><div class="tl-node ar"><b>التلقائي:</b> التعديل الأساسي Automatic</div><div class="tl-node ar"><b>المرن:</b> Manual مسموح للحالات الخاصة</div></div></div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- SLIDE 2 : WHATSAPP PRO STATUS -->
-  <div class="slide" data-index="1">
-    <div class="rail">
-      <div class="rail-top">
-        <div class="kicker"><span>02 / 05</span><span>WhatsApp Pro / واتساب برو</span></div>
-        <h2><i>NEW STATUS</i><b>Track<br>Every<br>Reply.</b></h2>
-        <p class="desc-en">We need detailed communication statuses after sending invitations — not just Sent / Confirmed. Every influencer response must be logged.</p>
-        <p class="desc-ar ar">نحتاج إلى حالات تواصل مفصلة بعد إرسال الدعوات - ليس فقط Sent / Confirmed. يجب تسجيل كل رد من الإنفلونسر.</p>
-      </div>
-      <div class="rail-bottom">
-        <div class="stat-row">
-          <div class="stat"><label>Before</label><b>2 statuses</b></div>
-          <div class="stat"><label>Now</label><b>5+ statuses + Reason</b></div>
-        </div>
-      </div>
+<!-- 02 WHATSAPP STATUS -->
+<div class="slide" data-i="1">
+  <div class="rail">
+    <div class="rail-top">
+      <div class="kicker"><span class="num">02 / 05</span><span class="cat">WhatsApp Pro · واتساب برو</span></div>
+      <h2><i>NEW STATUS</i><b>Track<br>Every<br><b class="accent">Reply.</b></b></h2>
+      <p class="desc-en">After invitation, we need detailed communication statuses — not just Sent/Confirmed. Every response must be logged.</p>
+      <p class="desc-ar ar">بعد إرسال الدعوات نحتاج حالات تواصل مفصلة - ليس فقط Sent / Confirmed. يجب تسجيل كل رد من الإنفلونسر.</p>
     </div>
-    <div class="main">
-      <div class="main-header">
-        <div><h3>Campaign Management Upgrade <span>From Invitation → Communication Log</span></h3></div>
-        <div class="main-header-ar ar"><h3>ترقية إدارة الحملات<br><span>من إرسال الدعوة إلى سجل التواصل</span></h3></div>
+    <div class="rail-bottom">
+      <div class="stats"><div class="stat"><label>Before</label><b>2 statuses</b></div><div class="stat"><label>Now</label><b>5+ + Reason</b></div></div>
+      <div class="legend"><span style="border-color:var(--gc-orange-12)"><i style="background:var(--gc-orange)"></i> No Response</span><span><i style="background:var(--gc-navy)"></i> Paid Ads</span><span><i style="background:var(--gc-tan)"></i> Rejected</span></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="main-head"><div><h3>Campaign Management Upgrade <span>Invitation → Communication Log with Reason</span></h3></div><div class="main-head-ar ar"><h3>ترقية إدارة الحملات<br><span>من الدعوة إلى سجل تواصل مع السبب</span></h3></div></div>
+    <div class="main-body">
+      <div class="col col-en">
+        <div class="cardlet"><h4><span class="icon">①</span> No Response — 24H Rule</h4><p>If influencer doesn't reply within 1 day → <b>No Response</b></p><div class="flow"><span class="flow-item">Invitation Sent</span><span class="flow-arrow">24h</span><span class="flow-item orange">No Response</span><span class="flow-arrow">→</span><span class="flow-item navy">Activation Workflow</span></div></div>
+        <div class="cardlet orange-tint"><h4><span class="icon">②</span> Paid Ads Only</h4><p>Reply = "Paid ads only" → status <b>Paid Ads</b> triggers convincing & negotiation workflow.</p></div>
+        <div class="cardlet navy"><h4><span class="icon">③</span> Rejection + Reason</h4><p>Critical: when Rejected, capture <b>Reason</b>. Why refused? For future intelligence.</p><ul><li>Reason tags: budget, timing, brand conflict, category</li><li>Stored for next invitation logic</li></ul></div>
       </div>
-      <div class="mini-grid">
-        <div class="col col-en">
-          <div class="cardlet">
-            <h4><span class="icon">①</span> No Response — 24h Rule</h4>
-            <p>If influencer doesn't reply to invitation within 1 day → mark <b>No Response</b></p>
-            <div class="flow" style="margin-top:10px"><span class="flow-item">Invitation Sent</span><span class="flow-arrow">24h</span><span class="flow-item" style="background:var(--accent)">No Response</span><span class="flow-arrow">→</span><span class="flow-item"><b>Activation Workflow</b></span></div>
-          </div>
-          <div class="cardlet">
-            <h4><span class="icon">②</span> Paid Ads — Negotiation</h4>
-            <p>Reply is "Paid ads only" → status <b>Paid Ads</b> triggers convincing & negotiation workflow.</p>
-          </div>
-          <div class="cardlet accented">
-            <h4><span class="icon">③</span> Rejection / Reject + Reason</h4>
-            <p>Critical: when Rejected, we must capture <b>Reason</b> field. Why was invitation refused? Used for future targeting logic.</p>
-            <ul>
-              <li>Reason tags: budget, timing, brand conflict, category, etc.</li>
-              <li>Stored for next invitation intelligence</li>
-            </ul>
-          </div>
-        </div>
-        <div class="col col-ar">
-          <div class="cardlet ar">
-            <h4>① عدم الرد خلال يوم <span class="icon">⏳</span></h4>
-            <p>إذا لم يرد الإنفلونسر خلال يوم واحد → الحالة <b>No Response</b> ويبدأ تفعيل workflow تنشيطي.</p>
-          </div>
-          <div class="cardlet ar">
-            <h4>② رد مدفوع فقط <span class="icon">💰</span></h4>
-            <p>رد بـ Paid Ads فقط → حالة <b>Paid Ads</b> ويبدأ مسار الإقناع والتفاوض.</p>
-          </div>
-          <div class="cardlet cardlet-accent ar">
-            <h4>③ الرفض مع السبب <span class="icon">✕</span></h4>
-            <p>في حالة Rejection يجب تسجيل <b>السبب</b>. لماذا تم الرفض؟ حتى نأخذه في الاعتبار في الدعوة القادمة.</p>
-            <ul>
-              <li>أسباب الرفض: الميزانية، التوقيت، تعارض علامة، الفئة</li>
-              <li>يتم حفظه لتحسين الاستهداف مستقبلاً</li>
-            </ul>
-          </div>
-          <div class="cardlet ar" style="background:var(--black); color:white; border-color:var(--black)">
-            <h4 style="color:white">الخلاصة</h4>
-            <p style="color:rgba(255,255,255,0.7)">بعد إرسال الدعوة يجب تسجيل: رد أم لا، ونوع الرد، وسبب الرفض إن وجد.</p>
-          </div>
-        </div>
+      <div class="col col-ar">
+        <div class="cardlet ar"><h4>① عدم الرد خلال يوم <span class="icon">⏳</span></h4><p>إذا لم يرد الإنفلونسر خلال يوم → الحالة <b>No Response</b> ويبدأ تفعيل workflow تنشيطي.</p></div>
+        <div class="cardlet ar"><h4>② رد مدفوع فقط <span class="icon">💰</span></h4><p>رد بـ Paid Ads فقط → حالة <b>Paid Ads</b> ويبدأ مسار الإقناع والتفاوض.</p></div>
+        <div class="cardlet tan ar"><h4>③ الرفض مع السبب <span class="icon">✕</span></h4><p>في حالة Rejection يجب تسجيل <b>السبب</b>. لماذا تم الرفض؟ حتى نأخذه في الاعتبار في الدعوة القادمة.</p><ul><li>أسباب الرفض: الميزانية، التوقيت، تعارض علامة، الفئة</li><li>يُحفظ لتحسين الاستهداف</li></ul></div>
+        <div class="cardlet navy ar" style="display:flex; gap:10px; align-items:center"><div style="width:36px; height:36px; border-radius:10px; background:var(--gc-orange); display:grid; place-items:center; color:white; font-weight:800">!</div><div><b style="font-size:11px">الخلاصة</b><p style="margin-top:2px">بعد الدعوة يجب تسجيل: رد أم لا، نوع الرد، وسبب الرفض إن وجد.</p></div></div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- SLIDE 3 : AUTOMATION -->
-  <div class="slide" data-index="2">
-    <div class="rail">
-      <div class="rail-top">
-        <div class="kicker"><span>03 / 05</span><span>Automation / الأتمتة</span></div>
-        <h2><i>AUTO PILOT</i><b>Invite,<br>Brief,<br>Remind.</b></h2>
-        <p class="desc-en">Invitations and reminders must be automated, logged by number/office, and driven by campaign target performance.</p>
-        <p class="desc-ar ar">يجب أتمتة الدعوات والتنبيهات، وتسجيلها حسب الرقم/المكتب، وربطها بأداء التارجت في الحملة.</p>
-      </div>
-      <div class="rail-bottom">
-        <div class="stat-row">
-          <div class="stat"><label>Missing</label><b>Brief Sending</b></div>
-          <div class="stat"><label>Logic</label><b>Reminder 1 & 2</b></div>
-        </div>
-      </div>
+<!-- 03 AUTOMATION -->
+<div class="slide" data-i="2">
+  <div class="rail">
+    <div class="rail-top">
+      <div class="kicker"><span class="num">03 / 05</span><span class="cat">Automation · الأتمتة</span></div>
+      <h2><i>AUTO</i><b>Invite,<br>Brief,<br><b class="accent">Remind.</b></b></h2>
+      <p class="desc-en">Invitations + reminders automated, logged by number/office, and driven by campaign target performance.</p>
+      <p class="desc-ar ar">يجب أتمتة الدعوات والتنبيهات، وتسجيلها حسب الرقم/المكتب، وربطها بأداء التارجت.</p>
     </div>
-    <div class="main">
-      <div class="main-header">
-        <div><h3>Automation Layer <span>Invitation → Brief → Reminder engine</span></h3></div>
-        <div class="main-header-ar ar"><h3>طبقة الأتمتة<br><span>محرك الدعوة ← البريف ← التذكير</span></h3></div>
+    <div class="rail-bottom"><div class="stats"><div class="stat"><label>Missing</label><b>Brief Sending</b></div><div class="stat"><label>Logic</label><b>Reminder 1 / 2</b></div></div></div>
+  </div>
+  <div class="main">
+    <div class="main-head"><div><h3>Automation Layer <span>Invitation → Brief → Reminder engine</span></h3></div><div class="main-head-ar ar"><h3>طبقة الأتمتة<br><span>محرك الدعوة ← البريف ← التذكير</span></h3></div></div>
+    <div class="main-body">
+      <div class="col col-en">
+        <div class="cardlet navy"><h4><span class="icon">✦</span> Auto Invitation + Logging</h4><p>Invitation auto-sent to any influencer added. Logs <b>which number</b> & <b>which office</b>.</p><div class="flow"><span class="flow-item tan">Add Influencer</span><span class="flow-arrow">→</span><span class="flow-item orange">Auto Invite</span><span class="flow-arrow">→</span><span class="flow-item">Log Source</span></div></div>
+        <div class="cardlet" style="border-style:dashed; border-color:var(--gc-orange)"><h4><span class="icon">⚠</span> Missing Gap — Brief Sending</h4><p>Only Invitation & Reminder exist. <b>Brief Sending is missing</b> — must be added to WA Pro.</p></div>
+        <div class="cardlet orange-tint"><h4><span class="icon">②</span> Smart Reminders</h4><p>Reminder auto for <b>Pending only</b> — after excluding No Response/Paid/Rejected.</p><div class="flow"><span class="flow-item navy">Reminder 1</span><span class="flow-arrow">→</span><span class="flow-item navy">Reminder 2</span><span class="flow-arrow">=</span><span class="flow-item tan">Based on Target %</span></div><p style="margin-top:6px">If target shortage → trigger reminder to <b>Confirmed</b> to complete target.</p></div>
       </div>
-      <div class="mini-grid">
-        <div class="col col-en">
-          <div class="cardlet accented">
-            <h4><span class="icon">✦</span> Auto Invitation + Logging</h4>
-            <p>Invitation auto-sent to any influencer added to campaign. System logs: <b>which number</b> & <b>which office</b> sent it.</p>
-            <ul>
-              <li>Trigger: Influencer added to campaign</li>
-              <li>Log: Phone number ID + Office source</li>
-            </ul>
-          </div>
-          <div class="cardlet" style="border-style:dashed">
-            <h4><span class="icon">⚠</span> Missing Gap — Brief Sending</h4>
-            <p>Currently only Invitation & Reminder exist in WA Pro. <b>Brief Sending is missing</b> — must be added.</p>
-          </div>
-          <div class="cardlet cardlet-accent">
-            <h4><span class="icon">②</span> Smart Reminders</h4>
-            <p>Reminder auto-trigger for <b>Pending only</b> — after excluding No Response / Paid / Rejected. Two stages:</p>
-            <div class="flow" style="margin-top:10px"><span class="flow-item"><b>Reminder 1</b></span><span class="flow-arrow">→</span><span class="flow-item"><b>Reminder 2</b></span><span class="flow-arrow">=</span><span class="flow-item">Based on Target %</span></div>
-            <p style="margin-top:8px">If target has shortage → trigger reminder to <b>Confirmed</b> influencers to complete target.</p>
-          </div>
-        </div>
-        <div class="col col-ar">
-          <div class="cardlet ar">
-            <h4>الدعوة التلقائية مع التسجيل <span class="icon">✦</span></h4>
-            <p>الدعوة تُرسل بشكل أوتوماتيك لأي إنفلونسر في الحملة، ويتم تسجيل الدعوة اتبعتت من أنهي رقم أو أنهي مكتب.</p>
-            <div class="flow" style="margin-top:10px; justify-content:flex-end"><span class="flow-item">إضافة إنفلونسر</span><span class="flow-arrow">←</span><span class="flow-item" style="background:var(--accent)">دعوة أوتوماتيك</span><span class="flow-arrow">←</span><span class="flow-item">تسجيل المصدر</span></div>
-          </div>
-          <div class="cardlet ar" style="background:var(--black); color:white; border-color:var(--black)">
-            <h4 style="color:white">الفجوة: إرسال البريف غير موجود</h4>
-            <p style="color:rgba(255,255,255,0.7)">يوجد فقط Invitation و Reminder. حتة الـ Brief ناقصة ولازم تضاف لواتساب برو.</p>
-          </div>
-          <div class="cardlet cardlet-accent ar">
-            <h4>التذكير الذكي <span class="icon">②</span></h4>
-            <p>الـ Reminder بشكل أوتوماتيك لحالة Pending فقط بعد استبعاد No Response و Paid و Rejected.</p>
-            <ul>
-              <li>Reminder 1 و 2 بناءً على نسبة تحقيق تارجت الحملة</li>
-              <li>لو في عجز → نبدأ نعمل Reminder للـ Confirmed لتكملة التارجت</li>
-            </ul>
-          </div>
-        </div>
+      <div class="col col-ar">
+        <div class="cardlet ar"><h4>الدعوة التلقائية مع التسجيل <span class="icon">✦</span></h4><p>الدعوة تُرسل أوتوماتيك لأي إنفلونسر في الحملة، ويتم تسجيل من أنهي رقم أو مكتب.</p><div class="flow" style="justify-content:flex-end"><span class="flow-item">تسجيل المصدر</span><span class="flow-arrow">←</span><span class="flow-item orange">دعوة أوتوماتيك</span><span class="flow-arrow">←</span><span class="flow-item tan">إضافة إنفلونسر</span></div></div>
+        <div class="cardlet navy ar"><h4>الفجوة: إرسال البريف غير موجود</h4><p>يوجد فقط Invitation و Reminder. حتة الـ Brief ناقصة ولازم تضاف لواتساب برو.</p></div>
+        <div class="cardlet tan ar"><h4>التذكير الذكي <span class="icon">②</span></h4><p>الـ Reminder أوتوماتيك لحالة Pending فقط بعد استبعاد No Response و Paid و Rejected.</p><ul><li>Reminder 1 و 2 بناءً على نسبة تحقيق التارجت</li><li>لو في عجز → Reminder للـ Confirmed لتكملة التارجت</li></ul></div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- SLIDE 4 : CONFIRMATION SHEET -->
-  <div class="slide" data-index="3">
-    <div class="rail">
-      <div class="rail-top">
-        <div class="kicker"><span>04 / 05</span><span>Central Hub / المركز الموحّد</span></div>
-        <h2><i>HUB</i><b>One Sheet<br>To Rule<br>Ops.</b></h2>
-        <p class="desc-en">Confirmation Sheet lives on Admin Dashboard and listens to every campaign module. The complete operational workflow in one place.</p>
-        <p class="desc-ar ar">شيت التأكيد يعيش على Admin Dashboard ويسمع من كل موديولز الحملة. مجمّع لكل سير العمل الخاص بالأوبريشن.</p>
-      </div>
-      <div class="rail-bottom">
-        <div class="stat-row">
-          <div class="stat"><label>Feeds From</label><b>WA Pro + Coverage</b></div>
-          <div class="stat"><label>Single View</label><b>All Ops Workflow</b></div>
-        </div>
-      </div>
+<!-- 04 CONFIRMATION SHEET -->
+<div class="slide" data-i="3">
+  <div class="rail">
+    <div class="rail-top">
+      <div class="kicker"><span class="num">04 / 05</span><span class="cat">Central Hub · المركز الموحد</span></div>
+      <h2><i>HUB</i><b>One Sheet<br>To Rule<br><b class="accent">Ops.</b></b></h2>
+      <p class="desc-en">Confirmation Sheet lives on Admin Dashboard, listens to every module. Complete ops workflow in one place.</p>
+      <p class="desc-ar ar">شيت التأكيد على Admin Dashboard ويسمع من كل موديولز الحملة. مجمّع لكل سير العمل.</p>
     </div>
-    <div class="main">
-      <div class="main-header">
-        <div><h3>Confirmation Sheet Spec <span>What gets tracked automatically</span></h3></div>
-        <div class="main-header-ar ar"><h3>مواصفات شيت التأكيد<br><span>ما الذي يتم تتبعه تلقائياً</span></h3></div>
+    <div class="rail-bottom"><div class="stats"><div class="stat"><label>Feeds</label><b>WA Pro + Coverage</b></div><div class="stat"><label>View</label><b>All Ops Workflow</b></div></div></div>
+  </div>
+  <div class="main">
+    <div class="main-head"><div><h3>Confirmation Sheet Spec <span>What is tracked automatically — white 55% dominance</span></h3></div><div class="main-head-ar ar"><h3>مواصفات شيت التأكيد<br><span>ما الذي يتم تتبعه تلقائياً</span></h3></div></div>
+    <div class="main-body">
+      <div class="col col-en">
+        <div class="cardlet"><h4><span class="icon">↕</span> Listens to All Modules</h4><p>Every update syncs into sheet:</p><div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px"><div class="flow-item navy" style="justify-content:center">WhatsApp Pro</div><div class="flow-item tan" style="justify-content:center">Coverage</div></div></div>
+        <div class="cardlet navy"><h4><span class="icon">▤</span> Fields Tracked</h4><ul><li><b>Invitation:</b> update logged, source number/office</li><li><b>Status:</b> changes per confirmation</li><li><b>Confirmation Date + Visit:</b> did visit? Actual Visit Date</li><li><b>Delivery:</b> if campaign = Delivery → Order sent?</li><li><b>Coverage:</b> Correct / Needs Edit / Missed</li></ul></div>
+        <div class="cardlet orange-tint"><h4><span class="icon">◈</span> Unified Ops View</h4><p>One sheet = full timeline per influencer: invite → coverage validation.</p></div>
       </div>
-      <div class="mini-grid">
-        <div class="col col-en">
-          <div class="cardlet">
-            <h4><span class="icon">↕</span> Listens to All Modules</h4>
-            <p>Every update from campaign modules syncs into sheet:</p>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px">
-              <div class="flow-item" style="justify-content:center"><b>WhatsApp Pro</b> updates</div>
-              <div class="flow-item" style="justify-content:center"><b>Coverage</b> status</div>
-            </div>
-          </div>
-          <div class="cardlet accented">
-            <h4><span class="icon">▤</span> Fields Tracked</h4>
-            <ul>
-              <li><b>Invitation:</b> update logged, source number/office</li>
-              <li><b>Status:</b> changes per confirmation recorded</li>
-              <li><b>Confirmation Date + Visit:</b> did visit? Actual Visit Date</li>
-              <li><b>Delivery:</b> if campaign = Delivery → Order sent?</li>
-              <li><b>Coverage:</b> Correct / Needs Edit / Missed Coverage</li>
-            </ul>
-          </div>
-          <div class="cardlet cardlet-accent">
-            <h4><span class="icon">◈</span> Unified Ops View</h4>
-            <p>One sheet = full operation timeline per influencer: from invitation to coverage validation.</p>
-          </div>
-        </div>
-        <div class="col col-ar">
-          <div class="cardlet ar">
-            <h4>يسمع من كل الموديولز <span class="icon">↕</span></h4>
-            <p>Confirmation Sheet بيسمع من كل Modules الخاصة بالحملة سواء Coverage أو WhatsApp Pro.</p>
-          </div>
-          <div class="cardlet ar" style="background:var(--black); color:white; border-color:var(--black)">
-            <h4 style="color:white">الحقول التي يتم تتبعها</h4>
-            <ul>
-              <li style="color:white">تحديث الدعوة يتسجل في الشيت</li>
-              <li style="color:white">حالة الإنفلونسر تتغير بناءً على التأكيد وتاريخه</li>
-              <li style="color:white">هل عمل Visit؟ تاريخ الزيارة الفعلي Actual</li>
-              <li style="color:white">لو الحملة Delivery → هل اتبعت له Order؟</li>
-              <li style="color:white">الـ Coverage: مظبوطة / محتاجة تعديل / Missed</li>
-            </ul>
-          </div>
-          <div class="cardlet cardlet-accent ar">
-            <h4>رؤية عمليات موحدة <span class="icon">◈</span></h4>
-            <p>بحيث إن الشيت ده يكون مجمع لكل الـ Workflow الخاص بالـ Operation بالنسبة للحملة.</p>
-          </div>
-        </div>
+      <div class="col col-ar">
+        <div class="cardlet ar"><h4>يسمع من كل الموديولز <span class="icon">↕</span></h4><p>Confirmation Sheet بيسمع من كل Modules الخاصة بالحملة سواء Coverage أو WhatsApp Pro.</p></div>
+        <div class="cardlet navy ar"><h4>الحقول التي يتم تتبعها</h4><ul><li>تحديث الدعوة يتسجل في الشيت</li><li>حالة الإنفلونسر تتغير بناءً على التأكيد وتاريخه</li><li>هل عمل Visit؟ تاريخ الزيارة الفعلي</li><li>لو الحملة Delivery → هل اتبعت له Order؟</li><li>الـ Coverage: مظبوطة / محتاجة تعديل / Missed</li></ul></div>
+        <div class="cardlet tan ar"><h4>رؤية عمليات موحدة <span class="icon">◈</span></h4><p>بحيث إن الشيت ده يكون مجمع لكل الـ Workflow الخاص بالـ Operation بالنسبة للحملة.</p></div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- SLIDE 5 : WORKFLOW & BACKUP -->
-  <div class="slide" data-index="4">
-    <div class="rail">
-      <div class="rail-top">
-        <div class="kicker"><span>05 / 05</span><span>Resilience / الاعتمادية</span></div>
-        <h2><i>SAFE MODE</i><b>Auto First,<br>Manual When<br>Needed.</b></h2>
-        <p class="desc-en">Primary edit is automatic. Manual override for exceptions. Backend Dropbox remains as periodic backup & fallback.</p>
-        <p class="desc-ar ar">التعديل الأساسي Automatic. Manual مسموح في الحالات الخاصة. دروب بوكس يبقى كـ Backup دوري و fallback.</p>
-      </div>
-      <div class="rail-bottom">
-        <div class="stat-row">
-          <div class="stat"><label>Primary</label><b>Automatic</b></div>
-          <div class="stat"><label>Backup</label><b>Dropbox Sync</b></div>
-        </div>
-      </div>
+<!-- 05 WORKFLOW & BACKUP -->
+<div class="slide" data-i="4">
+  <div class="rail">
+    <div class="rail-top">
+      <div class="kicker"><span class="num">05 / 05</span><span class="cat">Resilience · الاعتمادية</span></div>
+      <h2><i>SAFE MODE</i><b>Auto First,<br>Manual<br><b class="accent">When Needed.</b></b></h2>
+      <p class="desc-en">Primary edit automatic. Manual override for exceptions. Backend Dropbox as periodic backup & fallback.</p>
+      <p class="desc-ar ar">التعديل الأساسي Automatic. Manual مسموح في الحالات الخاصة. دروب بوكس كـ Backup دوري و fallback.</p>
     </div>
-    <div class="main">
-      <div class="main-header">
-        <div><h3>Workflow & Backup Strategy <span>How we stay operational even when down</span></h3></div>
-        <div class="main-header-ar ar"><h3>سير العمل والنسخ الاحتياطي<br><span>كيف نستمر حتى لو السيستم Down</span></h3></div>
+    <div class="rail-bottom"><div class="stats"><div class="stat"><label>Primary</label><b>Automatic</b></div><div class="stat"><label>Backup</label><b>Dropbox Sync</b></div></div></div>
+  </div>
+  <div class="main">
+    <div class="main-head"><div><h3>Workflow & Backup Strategy <span>How we stay operational even when down</span></h3></div><div class="main-head-ar ar"><h3>سير العمل والنسخ الاحتياطي<br><span>كيف نستمر حتى لو السيستم Down</span></h3></div></div>
+    <div class="main-body">
+      <div class="col col-en">
+        <div class="cardlet"><h4><span class="icon">⚡</span> Edit Logic</h4><div class="flow"><span class="flow-item orange"><b>AUTO</b> default</span><span class="flow-arrow">+</span><span class="flow-item navy">Manual Override</span></div><p style="margin-top:8px">If module fails to update sheet, Ops Agent can directly edit status / add info.</p></div>
+        <div class="cardlet navy"><h4><span class="icon">↻</span> Periodic Backup to Dropbox</h4><p>Backend exports all sheets periodically to Dropbox Shared Folder.</p><div style="margin-top:10px; border:1.5px dashed rgba(255,255,255,0.2); border-radius:12px; padding:10px; display:flex; gap:10px; align-items:center"><div style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.12); display:grid; place-items:center">☁</div><div><b style="font-size:11px; display:block">Dropbox Locally on Server</b><span style="font-size:11px; color:rgba(255,255,255,0.6)">Open on Dashboard Server, periodic export</span></div></div><ul style="margin-top:10px"><li>Export every 15 min (suggested)</li><li>Shared folder accessible to Ops</li></ul></div>
+        <div class="cardlet orange-tint"><h4><span class="icon">🛟</span> Fallback Plan</h4><p>If Confirmation Sheet down / disconnected → resume via Dropbox Share temporarily.</p></div>
       </div>
-      <div class="mini-grid">
-        <div class="col col-en">
-          <div class="cardlet">
-            <h4><span class="icon">⚡</span> Edit Logic</h4>
-            <div class="flow" style="margin-top:8px"><span class="flow-item" style="background:var(--accent)"><b>AUTO</b> by default</span><span class="flow-arrow">+</span><span class="flow-item">Manual Override for exception</span></div>
-            <p style="margin-top:10px">If a module fails to update sheet, Operation Agent can directly edit status / add info in Confirmation Sheet.</p>
-          </div>
-          <div class="cardlet accented">
-            <h4><span class="icon">↻</span> Periodic Backup to Dropbox</h4>
-            <p>Backend job exports all sheets periodically to Dropbox Shared Folder.</p>
-            <div style="margin-top:12px; border:1px dashed rgba(255,255,255,0.2); border-radius:12px; padding:10px; display:flex; gap:10px; align-items:center">
-              <div style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.1); display:grid; place-items:center">☁</div>
-              <div><b style="font-size:11px; display:block">Dropbox Locally on Server</b><span style="font-size:11px; color:rgba(255,255,255,0.6)">Open on Dashboard Server, periodic export</span></div>
-            </div>
-            <ul style="margin-top:12px">
-              <li style="color:white">Export runs on schedule (e.g., every 15 min)</li>
-              <li style="color:white">Shared folder accessible to Ops</li>
-            </ul>
-          </div>
-          <div class="cardlet cardlet-accent">
-            <h4><span class="icon">🛟</span> Fallback Plan</h4>
-            <p>If Confirmation Sheet on system down / disconnected office / any issue → resume work via Dropbox Share temporarily until fix.</p>
-          </div>
-        </div>
-        <div class="col col-ar">
-          <div class="cardlet ar">
-            <h4>منطق التعديل <span class="icon">⚡</span></h4>
-            <p>يكون التعديل في الشيت ده الأساسي Automatic. ويقبل Manual في حالات خاصة لو حصل مشكلة في Module.</p>
-            <ul>
-              <li>Operation Agent يقدر يعدل Status أو يضيف معلومات مباشر</li>
-              <li>تعديل مباشر في شيت Confirmation</li>
-            </ul>
-          </div>
-          <div class="cardlet ar" style="background:var(--black); color:white; border-color:var(--black)">
-            <h4 style="color:white">النسخ الاحتياطي الدوري</h4>
-            <p style="color:rgba(255,255,255,0.7)">بيحصل في الـ Back-end Periodic Backup لكل الشيتات دي في Dropbox Shared Folder. Dropbox مفتوح Locally على Server خاص بالـ Dashboard Server وبيتم Export بشكل Periodic.</p>
-          </div>
-          <div class="cardlet cardlet-accent ar">
-            <h4>خطة الطوارئ <span class="icon">🛟</span></h4>
-            <p>بحيث لو حصل مشكلة في Confirmation Sheet على السيستم، أو كله حصل له Down أو disconnected office، نقدر نرجع للشيتات دي عن طريق Dropbox Share ونشتغل عليها بشكل مؤقت.</p>
-          </div>
-        </div>
+      <div class="col col-ar">
+        <div class="cardlet ar"><h4>منطق التعديل <span class="icon">⚡</span></h4><p>التعديل الأساسي Automatic. ويقبل Manual في حالات خاصة لو حصل مشكلة في Module.</p><ul><li>Operation Agent يقدر يعدل Status أو يضيف معلومات مباشر</li></ul></div>
+        <div class="cardlet navy ar"><h4>النسخ الاحتياطي الدوري</h4><p>بيحصل في الـ Back-end Periodic Backup لكل الشيتات دي في Dropbox Shared Folder. Dropbox مفتوح Locally على Server خاص بالـ Dashboard Server وبيتم Export بشكل Periodic.</p></div>
+        <div class="cardlet tan ar"><h4>خطة الطوارئ <span class="icon">🛟</span></h4><p>لو حصل مشكلة في Confirmation Sheet على السيستم، أو Down أو disconnected office، نقدر نرجع للشيتات دي عن طريق Dropbox Share ونشتغل مؤقتاً.</p></div>
       </div>
     </div>
   </div>
+</div>
 
 </div>
 
 <div class="controls">
-  <div class="pill-indicators" id="indicators">
-    <button class="active" data-go="0">01</button>
-    <button data-go="1">02</button>
-    <button data-go="2">03</button>
-    <button data-go="3">04</button>
-    <button data-go="4">05</button>
-  </div>
+  <div class="dots" id="dots"><button class="active" data-go="0">01</button><button data-go="1">02</button><button data-go="2">03</button><button data-go="3">04</button><button data-go="4">05</button></div>
   <button class="btn" id="prev">←</button>
   <button class="btn primary" id="next">→</button>
 </div>
 
 <script>
-let idx=0;
+let i=0;
 const slides=[...document.querySelectorAll('.slide')];
 const dots=[...document.querySelectorAll('[data-go]')];
-const bar=document.getElementById('progressBar');
+const bar=document.getElementById('bar');
 function go(n){
-  idx = Math.max(0, Math.min(slides.length-1, n));
-  slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
-  dots.forEach((d,i)=> d.classList.toggle('active', i===idx));
-  bar.style.width = ((idx+1)/slides.length*100)+'%';
-  // update masthead chip number
-  document.querySelectorAll('.kicker span:first-child').forEach(k=>{ /*keep*/ });
+  i=Math.max(0,Math.min(slides.length-1,n));
+  slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+  dots.forEach((d,k)=>{d.classList.toggle('active',k===i); d.classList.toggle('orange-active',k===i)});
+  bar.style.width=((i+1)/slides.length*100)+'%';
 }
-document.getElementById('next').onclick=()=> go(idx+1);
-document.getElementById('prev').onclick=()=> go(idx-1);
-dots.forEach(b=> b.onclick=()=> go(parseInt(b.dataset.go)));
-document.addEventListener('keydown', e=>{
-  if(e.key==='ArrowRight') go(idx+1);
-  if(e.key==='ArrowLeft') go(idx-1);
+document.getElementById('next').onclick=()=>go(i+1);
+document.getElementById('prev').onclick=()=>go(i-1);
+dots.forEach(b=>b.onclick=()=>go(parseInt(b.dataset.go)));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight') go(i+1);
+  if(e.key==='ArrowLeft') go(i-1);
 });
 let sx=0;
-document.querySelector('.stage').addEventListener('touchstart', e=> sx=e.touches[0].clientX);
-document.querySelector('.stage').addEventListener('touchend', e=>{
+document.querySelector('.stage').addEventListener('touchstart',e=>sx=e.touches[0].clientX);
+document.querySelector('.stage').addEventListener('touchend',e=>{
   let dx=e.changedTouches[0].clientX-sx;
-  if(Math.abs(dx)>60) go(idx + (dx<0?1:-1));
+  if(Math.abs(dx)>60) go(i+(dx<0?1:-1));
 });
-
-// auto advance on click stage background? no
-// Apply masthead edit then re-bundling note: user wants masthead update
-console.log('TRYGC Light Mode Presentation Loaded');
+go(0);
 </script>
 </body>
 </html>
