@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Iterable
 from typing import Any
 
-SUPPORTED_PLATFORMS = ("tiktok", "instagram", "snapchat", "youtube", "twitter")
+SUPPORTED_PLATFORMS = ("tiktok", "instagram", "snapchat", "youtube", "twitter", "facebook", "linkedin", "pinterest", "reddit", "twitch")
 
 _TOKEN_RE = re.compile(r"[\w\u0600-\u06FF][\w.\-\u0600-\u06FF]{1,}", re.UNICODE)
 _STOP_WORDS = {

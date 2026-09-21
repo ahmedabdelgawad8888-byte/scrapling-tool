@@ -75,6 +75,11 @@ _RE_INSTAGRAM_USER = re.compile(r"^/?([\w.\-]+)/?$")
 _RE_SNAPCHAT = re.compile(r"/add/([\w.\-]+)")
 _RE_YOUTUBE_CHANNEL = re.compile(r"^/(@[\w.\-]+|channel/[\w\-]+|c/[\w.\-]+|user/[\w.\-]+|shorts/[\w\-]+|hashtag/[^/?#]+)")
 _RE_TWITTER = re.compile(r"^/([A-Za-z0-9_]+)(?:/status/(\d+))?")
+_RE_FACEBOOK = re.compile(r"/(?:pages/|groups/|watch/)?([A-Za-z0-9_.-]+)")
+_RE_LINKEDIN = re.compile(r"/in/([A-Za-z0-9_.-]+)|/company/([A-Za-z0-9_.-]+)")
+_RE_PINTEREST = re.compile(r"/([^/?#]+)")
+_RE_REDDIT = re.compile(r"/(?:r|user)/([^/?#]+)")
+_RE_TWITCH = re.compile(r"^/([A-Za-z0-9_]+)")
 _RE_LOGIN_WALL = re.compile(r'"loginAndSignupPage"|href="/accounts/login/"|action="/accounts/login/"|"login_page_v[eo]"')
 _RE_JSON_LD = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.DOTALL)
 _RE_SHARED_DATA = re.compile(r"window\.__sharedData\s*=\s*({.*?});", re.DOTALL)
@@ -171,9 +176,21 @@ console = Console(stderr=True) if _HAS_RICH else None
 # ---------------------------------------------------------------------------
 # Search provider API keys (from environment)
 # ---------------------------------------------------------------------------
-_QUERIT_API_KEY = os.environ.get("QUERIT_API_KEY", "")
-_TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
-_SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
+# Resolved through scrapling_tool.credentials rather than read directly, so a
+# key set from the dashboard's Providers page takes effect without a restart
+# and no credential is ever baked into this file. Module-level names are kept
+# for the existing call sites; each is a thin accessor now.
+try:
+    from scrapling_tool import credentials as _credentials
+except ImportError:  # running without src/ on the path
+    _credentials = None  # type: ignore[assignment]
+
+
+def _provider_key(name: str, env_var: str = "") -> str:
+    if _credentials is not None:
+        return _credentials.get_key(name)
+    return os.environ.get(env_var or f"{name.upper()}_API_KEY", "")
+
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +242,16 @@ def _platform_of(url: str) -> str:
         return "youtube"
     if "twitter.com" in u or re.search(r"https?://(www\.)?x\.com", u):
         return "twitter"
+    if "facebook.com" in u or "fb.com" in u:
+        return "facebook"
+    if "linkedin.com" in u:
+        return "linkedin"
+    if "pinterest.com" in u or "pin.it" in u:
+        return "pinterest"
+    if "reddit.com" in u or "redd.it" in u:
+        return "reddit"
+    if "twitch.tv" in u:
+        return "twitch"
     return "other"
 
 
@@ -845,6 +872,15 @@ def _audience_job_cancelled(run_id: str) -> bool:
     with _AUDIENCE_JOBS_LOCK:
         job = _AUDIENCE_JOBS.get(run_id)
         return bool(job and job["cancel"].is_set())
+
+
+def _cancel_audience_job(run_id: str) -> bool:
+    with _AUDIENCE_JOBS_LOCK:
+        job = _AUDIENCE_JOBS.get(run_id)
+        if job and "cancel" in job:
+            job["cancel"].set()
+    _audience_update_run(run_id, status="cancelled", phase="Run cancelled by user", completed_at=time.time())
+    return True
 
 
 async def _collect_tiktok_followers(run_id: str, username: str, expected_total: int,
@@ -1758,6 +1794,303 @@ def parse_twitter(response, url: str) -> dict:
     # Detect login wall
     if "Log in to X" in raw[:3000] or "login" in og_title.lower():
         result["error"] = "login_required"
+
+    return result
+
+
+def parse_facebook(response, url: str) -> dict:
+    """Extract Facebook page/profile data from a public page response."""
+    raw = _safe(response.body)
+    username = _username_from_url(url)
+    result = {
+        "url": url,
+        "username": username,
+        "platform": "facebook",
+        "status": getattr(response, "status", 200),
+        "full_name": "",
+        "bio": "",
+        "followers": "",
+        "likes": "",
+        "is_verified": False,
+        "is_business": False,
+        "profile_pic": "",
+        "category": "",
+        "location": "",
+        "external_url": "",
+        "hashtags": [],
+        "error": "",
+    }
+
+    og_title = _safe(response.css('meta[property="og:title"]::attr(content)').get())
+    og_desc = _safe(response.css('meta[property="og:description"]::attr(content)').get())
+    og_image = _safe(response.css('meta[property="og:image"]::attr(content)').get())
+
+    result["full_name"] = og_title or username
+    result["bio"] = og_desc
+    result["profile_pic"] = og_image
+
+    for block in _RE_JSON_LD.findall(raw):
+        try:
+            data = json.loads(block)
+            if not isinstance(data, dict):
+                continue
+            result["full_name"] = result["full_name"] or data.get("name", "")
+            result["bio"] = result["bio"] or data.get("description", "")
+            if data.get("address"):
+                addr = data["address"]
+                if isinstance(addr, dict):
+                    result["location"] = addr.get("addressLocality", "") or addr.get("addressRegion", "")
+            if data.get("url"):
+                result["external_url"] = data["url"]
+        except json.JSONDecodeError:
+            pass
+
+    m_followers = re.search(r'"follower_count"\s*:\s*(\d+)', raw)
+    if m_followers:
+        result["followers"] = m_followers.group(1)
+    m_likes = re.search(r'"page_likers"\s*:\s*\{"count"\s*:\s*(\d+)', raw)
+    if not m_likes:
+        m_likes = re.search(r'(\d[\d,.]+)\s*(?:people\s+)?(?:like|follow)\s+this', og_desc, re.I)
+    if m_likes:
+        result["likes"] = m_likes.group(1)
+    m_verified = re.search(r'"is_verified"\s*:\s*(true|false)', raw, re.I)
+    if m_verified:
+        result["is_verified"] = m_verified.group(1).lower() == "true"
+
+    if "login" in raw.lower()[:3000] and not result["full_name"]:
+        result["error"] = "login_required"
+
+    result["hashtags"] = list(set(re.findall(r"#(\w+)", result["bio"])))
+    return result
+
+
+def parse_linkedin(response, url: str) -> dict:
+    """Extract LinkedIn profile/company data from a public page response."""
+    raw = _safe(response.body)
+    username = _username_from_url(url)
+    is_company = "/company/" in url.lower()
+    result = {
+        "url": url,
+        "username": username,
+        "platform": "linkedin",
+        "status": getattr(response, "status", 200),
+        "full_name": "",
+        "headline": "",
+        "bio": "",
+        "followers": "",
+        "connections": "",
+        "is_verified": False,
+        "is_company": is_company,
+        "profile_pic": "",
+        "location": "",
+        "industry": "",
+        "external_url": "",
+        "error": "",
+    }
+
+    og_title = _safe(response.css('meta[property="og:title"]::attr(content)').get())
+    og_desc = _safe(response.css('meta[property="og:description"]::attr(content)').get())
+    og_image = _safe(response.css('meta[property="og:image"]::attr(content)').get())
+    title = _safe(response.css("title::text").get())
+
+    result["full_name"] = og_title or title.split(" | LinkedIn")[0].strip() or username
+    result["bio"] = og_desc
+    result["profile_pic"] = og_image
+
+    for block in _RE_JSON_LD.findall(raw):
+        try:
+            data = json.loads(block)
+            if not isinstance(data, dict):
+                continue
+            result["full_name"] = result["full_name"] or data.get("name", "")
+            result["bio"] = result["bio"] or data.get("description", "")
+            result["location"] = data.get("addressLocality", "") or result["location"]
+            result["industry"] = data.get("industry", "") or result["industry"]
+        except json.JSONDecodeError:
+            pass
+
+    m_followers = re.search(r'([\d,.]+[KMB]?)\s+followers', raw, re.I)
+    if m_followers:
+        result["followers"] = m_followers.group(1)
+    m_connections = re.search(r'([\d,.]+\+?)\s+connections', raw, re.I)
+    if m_connections:
+        result["connections"] = m_connections.group(1)
+    m_loc = re.search(r'"addressLocality"\s*:\s*"([^"]+)"', raw)
+    if m_loc and not result["location"]:
+        result["location"] = m_loc.group(1)
+
+    if og_desc and "Sign in" in og_desc[:200]:
+        result["error"] = "login_required"
+    elif not og_title and not og_image:
+        result["error"] = "login_required"
+
+    return result
+
+
+def parse_pinterest(response, url: str) -> dict:
+    """Extract Pinterest profile data from a public page response."""
+    raw = _safe(response.body)
+    username = _username_from_url(url)
+    result = {
+        "url": url,
+        "username": username,
+        "platform": "pinterest",
+        "status": getattr(response, "status", 200),
+        "full_name": "",
+        "bio": "",
+        "followers": "",
+        "following": "",
+        "pins_count": "",
+        "is_verified": False,
+        "profile_pic": "",
+        "location": "",
+        "external_url": "",
+        "hashtags": [],
+        "error": "",
+    }
+
+    og_title = _safe(response.css('meta[property="og:title"]::attr(content)').get())
+    og_desc = _safe(response.css('meta[property="og:description"]::attr(content)').get())
+    og_image = _safe(response.css('meta[property="og:image"]::attr(content)').get())
+
+    result["full_name"] = og_title.split(" on Pinterest")[0].strip() or username
+    result["bio"] = og_desc
+    result["profile_pic"] = og_image
+
+    m_followers = re.search(r'"follower_count"\s*:\s*(\d+)', raw)
+    if not m_followers:
+        m_followers = re.search(r'([\d,.]+[KMB]?)\s*[Ff]ollowers', og_desc or raw[:3000])
+    if m_followers:
+        result["followers"] = m_followers.group(1)
+
+    m_following = re.search(r'"following_count"\s*:\s*(\d+)', raw)
+    if m_following:
+        result["following"] = m_following.group(1)
+
+    m_pins = re.search(r'"pin_count"\s*:\s*(\d+)', raw)
+    if not m_pins:
+        m_pins = re.search(r'(\d+)\s*[Pp]ins', og_desc or "")
+    if m_pins:
+        result["pins_count"] = m_pins.group(1)
+
+    m_loc = re.search(r'"location"\s*:\s*"([^"]*)"', raw)
+    if m_loc:
+        result["location"] = m_loc.group(1)
+
+    result["hashtags"] = list(set(re.findall(r"#(\w+)", result["bio"])))
+    return result
+
+
+def parse_reddit(response, url: str) -> dict:
+    """Extract Reddit user/subreddit data from a public page response."""
+    raw = _safe(response.body)
+    username = _username_from_url(url)
+    is_subreddit = "/r/" in url and "/u/" not in url and "/user/" not in url
+    result = {
+        "url": url,
+        "username": username,
+        "platform": "reddit",
+        "status": getattr(response, "status", 200),
+        "full_name": "",
+        "bio": "",
+        "followers": "",
+        "karma": "",
+        "post_karma": "",
+        "comment_karma": "",
+        "is_verified": False,
+        "is_moderator": False,
+        "is_subreddit": is_subreddit,
+        "members": "",
+        "active_members": "",
+        "profile_pic": "",
+        "cake_day": "",
+        "created": "",
+        "error": "",
+    }
+
+    og_title = _safe(response.css('meta[property="og:title"]::attr(content)').get())
+    og_desc = _safe(response.css('meta[property="og:description"]::attr(content)').get())
+    og_image = _safe(response.css('meta[property="og:image"]::attr(content)').get())
+
+    result["full_name"] = og_title or username
+    result["bio"] = og_desc
+    result["profile_pic"] = og_image
+
+    m_karma = re.search(r'"total_karma"\s*:\s*(\d+)', raw)
+    if m_karma:
+        result["karma"] = m_karma.group(1)
+    m_post_karma = re.search(r'"link_karma"\s*:\s*(\d+)', raw)
+    if m_post_karma:
+        result["post_karma"] = m_post_karma.group(1)
+    m_comment_karma = re.search(r'"comment_karma"\s*:\s*(\d+)', raw)
+    if m_comment_karma:
+        result["comment_karma"] = m_comment_karma.group(1)
+    m_created = re.search(r'"created"\s*:\s*([\d.]+)', raw)
+    if m_created:
+        result["created"] = m_created.group(1)
+
+    if is_subreddit:
+        m_members = re.search(r'"subscribers"\s*:\s*(\d+)', raw)
+        if not m_members:
+            m_members = re.search(r'([\d,.]+[KMB]?)\s*[Mm]embers', og_desc or raw[:3000])
+        if m_members:
+            result["members"] = m_members.group(1)
+        m_active = re.search(r'"active_user_count"\s*:\s*(\d+)', raw)
+        if m_active:
+            result["active_members"] = m_active.group(1)
+    else:
+        result["followers"] = result.get("karma", "")
+
+    return result
+
+
+def parse_twitch(response, url: str) -> dict:
+    """Extract Twitch channel data from a public page response."""
+    raw = _safe(response.body)
+    username = _username_from_url(url)
+    result = {
+        "url": url,
+        "username": username,
+        "platform": "twitch",
+        "status": getattr(response, "status", 200),
+        "full_name": "",
+        "bio": "",
+        "followers": "",
+        "is_verified": False,
+        "is_live": False,
+        "profile_pic": "",
+        "game": "",
+        "views_total": "",
+        "external_url": "",
+        "error": "",
+    }
+
+    og_title = _safe(response.css('meta[property="og:title"]::attr(content)').get())
+    og_desc = _safe(response.css('meta[property="og:description"]::attr(content)').get())
+    og_image = _safe(response.css('meta[property="og:image"]::attr(content)').get())
+
+    result["full_name"] = og_title.replace(" - Twitch", "").strip() or username
+    result["bio"] = og_desc
+    result["profile_pic"] = og_image
+
+    m_followers = re.search(r'"followers_total"\s*:\s*(\d+)', raw)
+    if not m_followers:
+        m_followers = re.search(r'([\d,.]+[KMB]?)\s*[Ff]ollowers', og_desc or raw[:3000])
+    if m_followers:
+        result["followers"] = m_followers.group(1)
+
+    m_views = re.search(r'"views_total"\s*:\s*(\d+)', raw)
+    if m_views:
+        result["views_total"] = m_views.group(1)
+
+    result["is_live"] = bool(
+        re.search(r'"isLiveBroadcast"\s*:\s*true', raw, re.I)
+        or re.search(r'"stream_type"\s*:\s*"live"', raw)
+    )
+
+    m_game = re.search(r'"gameName"\s*:\s*"([^"]+)"', raw)
+    if m_game:
+        result["game"] = m_game.group(1)
 
     return result
 
@@ -3336,6 +3669,16 @@ def _parse_for_url(resp, url: str) -> dict:
         return parse_youtube(resp, url)
     if platform == "twitter":
         return parse_twitter(resp, url)
+    if platform == "facebook":
+        return parse_facebook(resp, url)
+    if platform == "linkedin":
+        return parse_linkedin(resp, url)
+    if platform == "pinterest":
+        return parse_pinterest(resp, url)
+    if platform == "reddit":
+        return parse_reddit(resp, url)
+    if platform == "twitch":
+        return parse_twitch(resp, url)
     return parse_generic(resp, url)
 
 
@@ -3355,6 +3698,11 @@ _PROFILE_EVIDENCE: dict[str, tuple[str, ...]] = {
     "youtube": ("subscribers", "followers", "videos_count", "biography", "bio"),
     "twitter": ("followers", "following", "biography", "bio"),
     "snapchat": ("followers", "subscribers", "biography", "bio"),
+    "facebook": ("full_name", "bio", "followers", "likes"),
+    "linkedin": ("full_name", "bio", "headline", "followers"),
+    "pinterest": ("full_name", "bio", "followers", "pins_count"),
+    "reddit": ("full_name", "bio", "karma", "members"),
+    "twitch": ("full_name", "bio", "followers"),
 }
 
 # Substrings that appear on interstitials and never on a rendered profile.
@@ -3675,6 +4023,8 @@ def _augment_with_profile(data: dict, resp, url: str) -> dict:
                 }
                 for p in profile.recent_posts
             ]
+        if profile.raw_data:
+            data["raw_data"] = profile.raw_data
         data.setdefault("_profile_source", profile.source)
     except Exception as e:
         _logger.debug(f"Profile augmentation failed for {url}: {e}")
@@ -4022,6 +4372,16 @@ _TARGET_SCOPES = {
     "snapchat":  {"accounts": "site:snapchat.com/add", "videos": "site:snapchat.com/add",
                   "posts": "site:snapchat.com/add", "stories": "site:snapchat.com/add",
                   "hashtags": "site:snapchat.com/add"},
+    "facebook":  {"accounts": "site:facebook.com", "posts": "site:facebook.com",
+                  "videos": "site:facebook.com/watch", "hashtags": "site:facebook.com"},
+    "linkedin":  {"accounts": "site:linkedin.com/in", "posts": "site:linkedin.com/posts",
+                  "videos": "site:linkedin.com/posts", "hashtags": "site:linkedin.com/feed/hashtag"},
+    "pinterest": {"accounts": "site:pinterest.com", "posts": "site:pinterest.com/pin",
+                  "videos": "site:pinterest.com/pin", "hashtags": "site:pinterest.com/search/pins"},
+    "reddit":    {"accounts": "site:reddit.com/user", "posts": "site:reddit.com/r",
+                  "videos": "site:reddit.com/r", "hashtags": "site:reddit.com/r"},
+    "twitch":    {"accounts": "site:twitch.tv", "videos": "site:twitch.tv/videos",
+                  "posts": "site:twitch.tv", "hashtags": "site:twitch.tv"},
 }
 
 
@@ -4171,6 +4531,57 @@ def _profile_filter(platform: str, url: str) -> str | None:
             return None
         return f"https://twitter.com/{m.group(1)}"
 
+    if platform == "facebook":
+        if "facebook.com" not in host and "fb.com" not in host:
+            return None
+        m = _RE_FACEBOOK.match("/" + path)
+        if not m:
+            return None
+        slug = m.group(1)
+        if slug.lower() in {"login", "share", "photo", "video", "watch", "marketplace", "groups"}:
+            return None
+        return f"https://www.facebook.com/{slug}"
+
+    if platform == "linkedin":
+        if "linkedin.com" not in host:
+            return None
+        m = _RE_LINKEDIN.match("/" + path)
+        if not m:
+            return None
+        handle = m.group(1) or m.group(2)
+        prefix = "in" if m.group(1) else "company"
+        return f"https://www.linkedin.com/{prefix}/{handle}"
+
+    if platform == "pinterest":
+        if "pinterest.com" not in host:
+            return None
+        m = _RE_PINTEREST.match("/" + path)
+        if not m:
+            return None
+        slug = m.group(1)
+        if slug.lower() in {"search", "pin", "board", "login", "signup"}:
+            return None
+        return f"https://www.pinterest.com/{slug}/"
+
+    if platform == "reddit":
+        if "reddit.com" not in host:
+            return None
+        m = _RE_REDDIT.match("/" + path)
+        if not m:
+            return None
+        return f"https://www.reddit.com/{path.rstrip('/')}"
+
+    if platform == "twitch":
+        if "twitch.tv" not in host:
+            return None
+        m = _RE_TWITCH.match("/" + path)
+        if not m:
+            return None
+        handle = m.group(1)
+        if handle.lower() in {"directory", "downloads", "jobs", "p", "store", "prime"}:
+            return None
+        return f"https://www.twitch.tv/{handle}"
+
     return None
 
 
@@ -4187,7 +4598,12 @@ def _direct_candidates(keyword: str, platform: str, target: str = "accounts") ->
         return []
 
     candidates: list[str] = []
-    if re.search(r"(https?://|www\.|tiktok\.com|instagram\.com|snapchat\.com|youtube\.com|youtu\.be|twitter\.com|x\.com)", raw, re.I):
+    if re.search(
+        r"(https?://|www\.|tiktok\.com|instagram\.com|snapchat\.com|youtube\.com|youtu\.be"
+        r"|twitter\.com|x\.com|facebook\.com|fb\.com|linkedin\.com|pinterest\.com"
+        r"|reddit\.com|twitch\.tv)",
+        raw, re.I,
+    ):
         normalized = _canonical_social_url(raw)
         direct = _profile_filter(platform, normalized)
         if direct:
@@ -4314,7 +4730,7 @@ async def _ddg_search(query: str, *, timeout: int = 20, max_results: int = 60) -
 
 async def _search_querit(query: str, *, timeout: int = 20, max_results: int = 30) -> list[dict]:
     """Search via Querit API (https://querit.ai) using Scrapling."""
-    if not _QUERIT_API_KEY:
+    if not _provider_key("querit"):
         return []
     hits: list[dict] = []
     try:
@@ -4322,7 +4738,7 @@ async def _search_querit(query: str, *, timeout: int = 20, max_results: int = 30
             "https://api.querit.ai/v1/search",
             method="POST",
             timeout=timeout,
-            headers={"Authorization": f"Bearer {_QUERIT_API_KEY}"},
+            headers={"Authorization": f'Bearer {_provider_key("querit")}'},
             json_data={"query": query, "count": max_results},
         )
         body = _safe(getattr(resp, "body", resp))
@@ -4342,7 +4758,7 @@ async def _search_querit(query: str, *, timeout: int = 20, max_results: int = 30
 
 async def _search_tavily(query: str, *, timeout: int = 20, max_results: int = 30) -> list[dict]:
     """Search via Tavily API (https://tavily.com) using Scrapling."""
-    if not _TAVILY_API_KEY:
+    if not _provider_key("tavily"):
         return []
     hits: list[dict] = []
     try:
@@ -4350,7 +4766,7 @@ async def _search_tavily(query: str, *, timeout: int = 20, max_results: int = 30
             "https://api.tavily.com/search",
             method="POST",
             timeout=timeout,
-            json_data={"api_key": _TAVILY_API_KEY, "query": query, "max_results": max_results, "search_depth": "advanced"},
+            json_data={"api_key": _provider_key("tavily"), "query": query, "max_results": max_results, "search_depth": "advanced"},
         )
         body = _safe(getattr(resp, "body", resp))
         data = json.loads(body) if isinstance(body, str) else body
@@ -4365,7 +4781,7 @@ async def _search_tavily(query: str, *, timeout: int = 20, max_results: int = 30
 
 async def _search_serper(query: str, *, timeout: int = 20, max_results: int = 30) -> list[dict]:
     """Search via Serper.dev API (Google search) using Scrapling."""
-    if not _SERPER_API_KEY:
+    if not _provider_key("serper"):
         return []
     hits: list[dict] = []
     try:
@@ -4373,7 +4789,7 @@ async def _search_serper(query: str, *, timeout: int = 20, max_results: int = 30
             "https://google.serper.dev/search",
             method="POST",
             timeout=timeout,
-            headers={"X-API-KEY": _SERPER_API_KEY},
+            headers={"X-API-KEY": _provider_key("serper")},
             json_data={"q": query, "num": max_results},
         )
         body = _safe(getattr(resp, "body", resp))
@@ -4382,6 +4798,66 @@ async def _search_serper(query: str, *, timeout: int = 20, max_results: int = 30
             url = item.get("link", "")
             if url:
                 hits.append({"url": url, "title": item.get("title", ""), "snippet": item.get("snippet", ""), "source": "serper"})
+    except Exception:
+        pass
+    return hits
+
+
+async def _search_serpapi(query: str, *, timeout: int = 20, max_results: int = 30) -> list[dict]:
+    """Search via SerpApi (Google search/news) using Scrapling."""
+    if not _provider_key("serpapi"):
+        return []
+    hits: list[dict] = []
+    try:
+        resp = await fetch_http(
+            "https://serpapi.com/search.json",
+            timeout=timeout,
+            params={"q": query, "api_key": _provider_key("serpapi"), "engine": "google"},
+        )
+        body = _safe(getattr(resp, "body", resp))
+        data = json.loads(body) if isinstance(body, str) else body
+        for item in (data.get("organic_results", []))[:max_results]:
+            url = item.get("link", "")
+            if url:
+                hits.append({
+                    "url": url,
+                    "title": item.get("title", ""),
+                    "snippet": item.get("snippet", ""),
+                    "source": "serpapi",
+                })
+    except Exception:
+        pass
+    return hits
+
+
+async def _search_scrapegraph(query: str, *, timeout: int = 20, max_results: int = 30) -> list[dict]:
+    """Smart search / extraction via ScrapeGraphAI."""
+    if not _provider_key("scrapegraph"):
+        return []
+    hits: list[dict] = []
+    try:
+        resp = await fetch_http(
+            "https://api.scrapegraphai.com/v1/smartscraper",
+            method="POST",
+            timeout=timeout,
+            headers={"Sgai-ApiKey": _provider_key("scrapegraph")},
+            json_data={
+                "user_prompt": f"Find URLs and summaries for: {query}",
+                "website_url": "https://google.com",
+            },
+        )
+        body = _safe(getattr(resp, "body", resp))
+        data = json.loads(body) if isinstance(body, str) else body
+        results = data.get("result", data)
+        if isinstance(results, list):
+            for item in results[:max_results]:
+                if isinstance(item, dict) and item.get("url"):
+                    hits.append({
+                        "url": item["url"],
+                        "title": item.get("title", ""),
+                        "snippet": item.get("snippet", "") or item.get("summary", ""),
+                        "source": "scrapegraph",
+                    })
     except Exception:
         pass
     return hits
@@ -4402,29 +4878,46 @@ async def _search_duckduckgo_api(query: str, *, timeout: int = 20, max_results: 
         if isinstance(data, dict):
             abstract_url = data.get("AbstractURL", "")
             if abstract_url:
-                hits.append({"url": abstract_url, "title": data.get("Heading", ""), "snippet": data.get("AbstractText", ""), "source": "ddg_api"})
+                hits.append({
+                    "url": abstract_url,
+                    "title": data.get("Heading", ""),
+                    "snippet": data.get("AbstractText", ""),
+                    "source": "ddg_api",
+                })
             for topic in data.get("RelatedTopics", [])[:max_results]:
                 if "Topics" in topic:
                     for sub in topic["Topics"][:5]:
                         url = sub.get("FirstURL", "") or ""
                         if url:
-                            hits.append({"url": url, "title": (sub.get("Text", "") or "")[:120], "snippet": "", "source": "ddg_api"})
+                            hits.append({
+                                "url": url,
+                                "title": (sub.get("Text", "") or "")[:120],
+                                "snippet": "",
+                                "source": "ddg_api",
+                            })
                 else:
                     url = topic.get("FirstURL", "") or ""
                     if url:
-                        hits.append({"url": url, "title": (topic.get("Text", "") or "")[:120], "snippet": "", "source": "ddg_api"})
+                        hits.append({
+                            "url": url,
+                            "title": (topic.get("Text", "") or "")[:120],
+                            "snippet": "",
+                            "source": "ddg_api",
+                        })
     except Exception:
         pass
     return hits
 
 
 _ENABLED_PROVIDERS = {
-    "bing": ("_search_engine_hits_via_bing", True),
-    "duckduckgo": ("_search_engine_hits_via_ddg", True),
-    "querit": ("_search_querit", bool(_QUERIT_API_KEY)),
-    "tavily": ("_search_tavily", bool(_TAVILY_API_KEY)),
-    "serper": ("_search_serper", bool(_SERPER_API_KEY)),
-    "duckduckgo_api": ("_search_duckduckgo_api", True),
+    "bing": ("_search_engine_hits_via_bing", None),
+    "duckduckgo": ("_search_engine_hits_via_ddg", None),
+    "querit": ("_search_querit", "querit"),
+    "tavily": ("_search_tavily", "tavily"),
+    "serper": ("_search_serper", "serper"),
+    "serpapi": ("_search_serpapi", "serpapi"),
+    "scrapegraph": ("_search_scrapegraph", "scrapegraph"),
+    "duckduckgo_api": ("_search_duckduckgo_api", None),
 }
 
 
@@ -4438,11 +4931,19 @@ async def _search_aggregate(query: str, *, timeout: int = 20, max_results: int =
         "querit": _search_querit,
         "tavily": _search_tavily,
         "serper": _search_serper,
+        "serpapi": _search_serpapi,
+        "scrapegraph": _search_scrapegraph,
         "duckduckgo_api": _search_duckduckgo_api,
     }
 
     if providers is None:
-        providers = [p for p, (_, enabled) in _ENABLED_PROVIDERS.items() if enabled]
+        # `needs` is None for the keyless engines and a credential name
+        # otherwise, resolved now rather than at import so a key added since
+        # startup counts.
+        providers = [
+            p for p, (_, needs) in _ENABLED_PROVIDERS.items()
+            if needs is None or _provider_key(needs)
+        ]
 
     results = await asyncio.gather(
         *[provider_fns[p](query, timeout=timeout, max_results=max_results) for p in providers if p in provider_fns],
@@ -6373,13 +6874,16 @@ def _build_web_handler():
             elif path == "/api/health":
                 self._json({
                     "status": "ok",
-                    "version": "1.4.0",
+                    "version": "1.5.0",
                     "modes": ["http", "browser", "stealth"],
                     "playwright": _HAS_PLAYWRIGHT,
                     "search": True,
-                    "searchPlatforms": ["tiktok", "instagram", "snapchat", "youtube", "twitter"],
+                    "searchPlatforms": list(SUPPORTED_PLATFORMS),
                     "postFinderPlatforms": list(_POST_PLATFORMS),
-                    "parsers": ["tiktok", "instagram", "snapchat", "youtube", "twitter", "generic"],
+                    "parsers": [
+                        "tiktok", "instagram", "snapchat", "youtube", "twitter",
+                        "facebook", "linkedin", "pinterest", "reddit", "twitch", "generic",
+                    ],
                     "features": [
                         "auto_escalate", "rate_limiting", "url_validation",
                         "result_cache", "multi_query_discovery", "post_finder",
@@ -6387,6 +6891,8 @@ def _build_web_handler():
                         "brand_mention_creator_discovery", "native_tiktok_post_search",
                         "authorized_tiktok_audience_extraction",
                         "audience_progress_and_exports",
+                        "facebook_scraping", "linkedin_scraping",
+                        "pinterest_scraping", "reddit_scraping", "twitch_scraping",
                     ],
                     "ui": ui_path.name if ui_path.exists() else None,
                 })
@@ -6469,8 +6975,17 @@ def _build_web_handler():
                     "python_version": sys.version,
                     "time": time.time()
                 })
-            elif path == "/api/audience/run":
-                run_id = str((query.get("id") or [""])[0])
+            elif path == "/api/providers":
+                self._json({
+                    "providers": list(_ENABLED_PROVIDERS.keys()),
+                    "statuses": {
+                        name: bool(_provider_key(name))
+                        for name in ("tavily", "serper", "serpapi", "scrapegraph")
+                    }
+                })
+            elif path == "/api/audience/run" or path.startswith("/api/audience/status"):
+                parts = path.strip("/").split("/")
+                run_id = parts[3] if len(parts) > 3 else str((query.get("id") or [""])[0])
                 try:
                     limit = int((query.get("limit") or ["100"])[0])
                     offset = int((query.get("offset") or ["0"])[0])
@@ -6492,8 +7007,9 @@ def _build_web_handler():
                 platform = str((query.get("platform") or ["tiktok"])[0]).lower()
                 snapshot = _audience_latest_run(username, platform)
                 self._json({"run": snapshot})
-            elif path == "/api/audience/export":
-                run_id = str((query.get("id") or [""])[0])
+            elif path == "/api/audience/export" or path.startswith("/api/audience/export/"):
+                parts = path.strip("/").split("/")
+                run_id = parts[3] if len(parts) > 3 else str((query.get("id") or [""])[0])
                 fmt = str((query.get("format") or ["csv"])[0]).lower()
                 run, rows = _audience_all_rows(run_id)
                 if not run:
@@ -6666,7 +7182,7 @@ def _build_web_handler():
                     self._handle_posts()
                 elif path == "/api/posts/stream":
                     self._handle_posts_stream()
-                elif path == "/api/audience/run":
+                elif path in ("/api/audience/run", "/api/audience/start"):
                     req = self._read_body()
                     target_url = _canonical_social_url(str(
                         req.get("target_url")
@@ -6681,7 +7197,7 @@ def _build_web_handler():
                         }, 400)
                         return
                     try:
-                        max_followers = max(0, int(req.get("max_followers") or 0))
+                        max_followers = max(0, int(req.get("max_followers") or req.get("limit") or 0))
                     except (TypeError, ValueError):
                         max_followers = 0
                     run_id, started = _start_audience_job(target_url, max_followers)
@@ -6690,18 +7206,11 @@ def _build_web_handler():
                         "started": started,
                         "run": _audience_run_snapshot(run_id),
                     }, 202 if started else 200)
-                elif path == "/api/audience/cancel":
-                    req = self._read_body()
-                    run_id = str(req.get("run_id") or "")
-                    with _AUDIENCE_JOBS_LOCK:
-                        job = _AUDIENCE_JOBS.get(run_id)
-                        if job:
-                            job["cancel"].set()
-                    if not job:
-                        snapshot = _audience_run_snapshot(run_id, limit=1)
-                        if snapshot is None:
-                            self._json({"error": "Audience run not found."}, 404)
-                            return
+                elif path == "/api/audience/cancel" or path.startswith("/api/audience/cancel/"):
+                    req = self._read_body() if self.headers.get("content-length") else {}
+                    parts = path.strip("/").split("/")
+                    run_id = parts[3] if len(parts) > 3 else str(req.get("run_id") or "")
+                    _cancel_audience_job(run_id)
                     self._json({"status": "cancelling", "run_id": run_id})
                 elif path == "/api/history/delete":
                     req = self._read_body()
@@ -6841,7 +7350,7 @@ def _build_web_handler():
             raw_providers = req.get("searchProviders") or req.get("search_providers")
             search_providers = None
             if isinstance(raw_providers, list) and raw_providers:
-                valid = {"bing", "duckduckgo", "querit", "tavily", "serper", "duckduckgo_api"}
+                valid = {"bing", "duckduckgo", "querit", "tavily", "serper", "serpapi", "scrapegraph", "duckduckgo_api"}
                 search_providers = [p for p in raw_providers if p in valid] or None
             return {
                 "keyword": " · ".join(keywords),
@@ -7212,7 +7721,7 @@ def _build_web_handler():
             raw_providers = req.get("searchProviders") or req.get("search_providers")
             search_providers = None
             if isinstance(raw_providers, list) and raw_providers:
-                valid = {"bing", "duckduckgo", "querit", "tavily", "serper", "duckduckgo_api"}
+                valid = {"bing", "duckduckgo", "querit", "tavily", "serper", "serpapi", "scrapegraph", "duckduckgo_api"}
                 search_providers = [p for p in raw_providers if p in valid] or None
             return {
                 "usernames": usernames[:500],
@@ -7483,11 +7992,22 @@ def _build_web_handler():
 
 
 def serve_dashboard() -> None:
-    """Console entry point that exposes the complete operational dashboard."""
-    web.main(
-        args=sys.argv[1:],
-        prog_name="scraper-serve",
-        standalone_mode=True,
+    """Console entry point — starts the full FastAPI dashboard via uvicorn."""
+    import argparse
+    import uvicorn
+
+    p = argparse.ArgumentParser(prog="scraper-serve")
+    p.add_argument("--host", default=os.getenv("SCRAPLING_HOST", "127.0.0.1"))
+    p.add_argument("--port", default=int(os.getenv("SCRAPLING_PORT", "8080")), type=int)
+    p.add_argument("--reload", action="store_true", help="Enable auto-reload (dev only)")
+    args = p.parse_args()
+
+    uvicorn.run(
+        "webapp.server:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        log_level="info",
     )
 
 

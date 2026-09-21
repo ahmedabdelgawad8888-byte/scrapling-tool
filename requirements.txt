@@ -14,6 +14,11 @@ openpyxl>=3.1,<4
 tabulate>=0.9,<1
 pyarrow>=14
 
+# Run history persistence. Optional at runtime: the store falls back to SQLite
+# when no SUPABASE_DB_URL/DATABASE_URL is set, but a host with an ephemeral
+# filesystem needs this for history to survive a restart.
+psycopg[binary,pool]>=3.1,<4
+
 # Shared utilities
 click>=8.0,<9
 rich>=13.0,<16

@@ -1644,13 +1644,13 @@
               TikTok exposes them, deduplicates every identity, and preserves progress locally.
             </p>
             <div class="audience-profile">
-              <div class="audience-profile-mark">R</div>
+              <div class="audience-profile-mark" id="audienceProfileMark">@</div>
               <div class="audience-profile-copy">
-                <strong>Roxa Shop <span style="display:inline;color:var(--muted)">| روكسا</span></strong>
-                <span>tiktok.com/@roxashop · target locked for this run</span>
+                <strong id="audienceProfileTitle">Target Profile</strong>
+                <span id="audienceProfileSub">tiktok.com/@username · target profile for extraction</span>
               </div>
               <div class="audience-total">
-                <b id="audienceExpectedHero">211,100</b>
+                <b id="audienceExpectedHero">Auto</b>
                 <small>profile followers</small>
               </div>
             </div>
@@ -1658,15 +1658,15 @@
 
           <div class="audience-launch">
             <h2>Run control</h2>
-            <p>Use an account that is permitted to view this public follower list. TikTok may ask you to sign in or complete its own verification.</p>
+            <p>Enter any public profile URL. The fetcher opens a secure, temporary browser session to stream public followers.</p>
             <div class="field">
-              <label>Target profile</label>
-              <input id="audienceTarget" value="https://www.tiktok.com/@roxashop" readonly />
+              <label>Target profile URL</label>
+              <input id="audienceTarget" type="url" value="https://www.tiktok.com/@roxashop" placeholder="https://www.tiktok.com/@username" />
             </div>
             <div class="field">
               <label>Collection ceiling</label>
               <input id="audienceLimit" type="number" min="0" step="100" value="0" />
-              <span class="inline-note">0 means continue toward the full 211,100 profile count.</span>
+              <span class="inline-note">0 means continue toward the target's total follower count.</span>
             </div>
             <label class="audience-consent">
               <input id="audienceConsent" type="checkbox" />
@@ -2605,14 +2605,29 @@
           $('connPill').className = 'status-indicator online';
           $('connText').textContent = 'Backend Connected';
           API.connected = true;
-        } else {
-          throw new Error('Not OK');
+          return;
         }
-      } catch (e) {
-        $('connPill').className = 'status-indicator';
-        $('connText').textContent = 'Backend Offline';
-        API.connected = false;
+      } catch (e) {}
+
+      // Auto fallback to current origin if API.base was set to a dead port/host
+      if (API.base !== window.location.origin) {
+        try {
+          const r = await fetch(`${window.location.origin}/api/health`, { signal: AbortSignal.timeout(3000) });
+          if (r.ok) {
+            API.base = window.location.origin;
+            localStorage.setItem('scrapling_api_base', API.base);
+            if ($('apiBase')) $('apiBase').value = API.base;
+            $('connPill').className = 'status-indicator online';
+            $('connText').textContent = 'Backend Connected';
+            API.connected = true;
+            return;
+          }
+        } catch (e) {}
       }
+
+      $('connPill').className = 'status-indicator';
+      $('connText').textContent = 'Backend Offline';
+      API.connected = false;
     }
     setInterval(checkHealth, 6000);
     checkHealth();
@@ -3077,11 +3092,14 @@
         ${reasonsHtml}
         ${postsHtml}
         <div class="btn-group">
-          <button class="btn inspect-profile" type="button">Inspect full profile</button>
           ${(r.profile_url || r.url) ? `<a class="btn" href="${escapeHtml(r.profile_url || r.url)}" target="_blank" rel="noopener">Open profile ↗</a>` : ''}
         </div>
       `;
-      el.querySelector('.inspect-profile').addEventListener('click', () => showModal(r));
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return;
+        showModal(r);
+      });
       return el;
     }
 
@@ -4444,10 +4462,13 @@
             <div class="btn-group">
               <a class="btn" href="${escapeHtml(creator.url || '#')}" target="_blank" rel="noopener">Open profile</a>
               <button class="btn view-evidence" type="button">Evidence (${escapeHtml(creator.mention_count || 0)})</button>
-              <button class="btn inspect-profile" type="button">Inspect full profile</button>
             </div>
           `;
-          card.querySelector('.inspect-profile').addEventListener('click', () => showModal(creator));
+          card.style.cursor = 'pointer';
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('a') || e.target.closest('button')) return;
+            showModal(creator);
+          });
           // Jump straight to this creator's evidence instead of hunting for it
           // in a table that may hold hundreds of rows.
           card.querySelector('.view-evidence').addEventListener('click', () => {
@@ -4915,12 +4936,12 @@
     // Load settings from localStorage
     function loadSavedSettings() {
       const savedApi = localStorage.getItem('scrapling_api_base');
-      if (savedApi) {
+      if (savedApi && savedApi.startsWith('http')) {
         API.base = savedApi;
-        $('apiBase').value = savedApi;
       } else {
-        $('apiBase').value = API.base;
+        API.base = window.location.origin;
       }
+      if ($('apiBase')) $('apiBase').value = API.base;
       
       const savedMock = localStorage.getItem('scrapling_mock_mode');
       if (savedMock) {
@@ -4962,6 +4983,139 @@
         profile_pic: ''
       };
     }
+    // ---- Audience Extraction Logic ----
+    let activeAudienceRunId = null;
+    let audiencePollTimer = null;
+
+    function updateAudienceProfileHeader() {
+      const url = $('audienceTarget')?.value || '';
+      let username = 'username';
+      let platform = 'tiktok.com';
+      try {
+        const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+        platform = parsed.hostname;
+        const match = parsed.pathname.match(/@?([\w.\-]+)/);
+        if (match) username = match[1].replace(/^@/, '');
+      } catch (_) {}
+      if ($('audienceProfileMark')) $('audienceProfileMark').textContent = (username.charAt(0) || '@').toUpperCase();
+      if ($('audienceProfileTitle')) $('audienceProfileTitle').textContent = `@${username}`;
+      if ($('audienceProfileSub')) $('audienceProfileSub').textContent = `${platform}/@${username} · target profile for extraction`;
+    }
+
+    if ($('audienceTarget')) {
+      $('audienceTarget').addEventListener('input', updateAudienceProfileHeader);
+      updateAudienceProfileHeader();
+    }
+
+    async function pollAudienceStatus() {
+      if (!activeAudienceRunId) return;
+      try {
+        const res = await fetch(`${API.base}/api/audience/status/${activeAudienceRunId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const run = data.run || {};
+        const followers = data.followers || [];
+
+        if ($('audiencePhase')) $('audiencePhase').textContent = run.phase || 'Extracting audience followers...';
+        if ($('audienceState')) {
+          $('audienceState').textContent = run.status || 'running';
+          $('audienceState').className = `audience-state ${run.status === 'completed' ? 'live' : (run.status === 'failed' ? 'failed' : 'attention')}`;
+        }
+        if ($('audienceCollected')) $('audienceCollected').textContent = compactNum(run.collected || followers.length);
+        if ($('audienceExpected')) $('audienceExpected').textContent = run.expected_total ? compactNum(run.expected_total) : 'Auto';
+        if ($('audienceExpectedHero')) $('audienceExpectedHero').textContent = run.expected_total ? compactNum(run.expected_total) : 'Auto';
+        if ($('audiencePages')) $('audiencePages').textContent = run.pages || 0;
+        
+        const pct = run.expected_total ? ((run.collected || followers.length) / run.expected_total * 100).toFixed(2) : '0.00';
+        if ($('audienceProgress')) $('audienceProgress').textContent = `${pct}%`;
+        if ($('audienceMeter')) $('audienceMeter').style.width = `${Math.min(100, Number(pct))}%`;
+        if ($('audienceRunId')) $('audienceRunId').textContent = `Run ID · ${activeAudienceRunId}`;
+
+        const resultsRoot = $('audienceResults');
+        if (resultsRoot && followers.length > 0) {
+          const filter = ($('audienceSearch')?.value || '').toLowerCase();
+          const filtered = followers.filter(f => !filter || (f.username + ' ' + f.full_name).toLowerCase().includes(filter));
+          resultsRoot.innerHTML = `<div class="audience-list" style="display:grid;gap:8px;padding:12px 0">` +
+            filtered.map(f => `
+              <div class="audience-person card" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div class="avatar" style="width:36px;height:36px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-weight:700">${(f.full_name || f.username || '?')[0].toUpperCase()}</div>
+                  <div>
+                    <strong style="display:block;font-size:14px">${escapeHtml(f.full_name || f.username)}</strong>
+                    <small style="color:var(--muted)">@${escapeHtml(f.username)}</small>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <span style="font-weight:600;font-size:13px">${compactNum(f.followers || 0)} followers</span>
+                  <a href="${escapeHtml(f.profile_url || '#')}" target="_blank" rel="noopener" style="display:block;color:var(--accent);font-size:11px">Profile ↗</a>
+                </div>
+              </div>
+            `).join('') + `</div>`;
+        }
+
+        if (['completed', 'failed', 'cancelled'].includes(run.status)) {
+          clearInterval(audiencePollTimer);
+          setLoading('audienceStart', false);
+          if ($('audienceCancel')) $('audienceCancel').hidden = true;
+          if ($('audienceExports')) $('audienceExports').hidden = false;
+        }
+      } catch (err) {
+        console.warn('Audience status poll failed:', err);
+      }
+    }
+
+    if ($('audienceStart')) {
+      $('audienceStart').addEventListener('click', async () => {
+        const url = $('audienceTarget').value.trim();
+        if (!url) return toast('Please enter a target profile URL', 'warn');
+        if ($('audienceConsent') && !$('audienceConsent').checked) {
+          return toast('Please check the authorization consent box to proceed', 'warn');
+        }
+
+        setLoading('audienceStart', true);
+        if ($('audienceCancel')) $('audienceCancel').hidden = false;
+        if ($('audienceExports')) $('audienceExports').hidden = true;
+
+        try {
+          const res = await fetch(`${API.base}/api/audience/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, limit: Number($('audienceLimit')?.value) || 0 })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Failed to start audience extraction');
+          
+          activeAudienceRunId = data.run_id;
+          toast('Audience extraction session launched', 'success');
+          clearInterval(audiencePollTimer);
+          audiencePollTimer = setInterval(pollAudienceStatus, 2000);
+          pollAudienceStatus();
+        } catch (err) {
+          setLoading('audienceStart', false);
+          if ($('audienceCancel')) $('audienceCancel').hidden = true;
+          toast(err.message, 'error');
+        }
+      });
+    }
+
+    if ($('audienceCancel')) {
+      $('audienceCancel').addEventListener('click', async () => {
+        if (!activeAudienceRunId) return;
+        try {
+          await fetch(`${API.base}/api/audience/cancel/${activeAudienceRunId}`, { method: 'POST' });
+          toast('Audience extraction cancellation requested', 'info');
+        } catch (_) {}
+      });
+    }
+
+    document.querySelectorAll('[data-audience-export]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!activeAudienceRunId) return;
+        const fmt = btn.getAttribute('data-audience-export');
+        window.open(`${API.base}/api/audience/export/${activeAudienceRunId}?format=${fmt}`, '_blank');
+      });
+    });
+
     renderResultsTable();
     renderCards();
     renderLookalikes();

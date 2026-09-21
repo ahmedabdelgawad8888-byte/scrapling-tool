@@ -17,8 +17,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from setuptools import build_meta as _setuptools
-
 _ROOT = Path(__file__).resolve().parent.parent
 _SOURCE = _ROOT / "index.html"
 _STAGED = _ROOT / "src" / "scrapling_tool" / "web" / "static" / "index.html"
@@ -35,24 +33,48 @@ def _stage_dashboard() -> None:
     shutil.copy2(_SOURCE, _STAGED)
 
 
+def _get_setuptools():
+    try:
+        from setuptools import build_meta as _setuptools
+        return _setuptools
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "setuptools is required to build scrapling-tool; install it with 'pip install setuptools>=64' or use 'uv build'"
+        ) from exc
+
+
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     _stage_dashboard()
-    return _setuptools.build_wheel(wheel_directory, config_settings, metadata_directory)
+    return _get_setuptools().build_wheel(wheel_directory, config_settings, metadata_directory)
 
 
 def build_sdist(sdist_directory, config_settings=None):
     _stage_dashboard()
-    return _setuptools.build_sdist(sdist_directory, config_settings)
+    return _get_setuptools().build_sdist(sdist_directory, config_settings)
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     _stage_dashboard()
-    return _setuptools.build_editable(wheel_directory, config_settings, metadata_directory)
+    return _get_setuptools().build_editable(wheel_directory, config_settings, metadata_directory)
 
 
-# Everything else (metadata preparation, build requirements) is plain setuptools.
-get_requires_for_build_wheel = _setuptools.get_requires_for_build_wheel
-get_requires_for_build_sdist = _setuptools.get_requires_for_build_sdist
-get_requires_for_build_editable = _setuptools.get_requires_for_build_editable
-prepare_metadata_for_build_wheel = _setuptools.prepare_metadata_for_build_wheel
-prepare_metadata_for_build_editable = _setuptools.prepare_metadata_for_build_editable
+def get_requires_for_build_wheel(config_settings=None):
+    return _get_setuptools().get_requires_for_build_wheel(config_settings)
+
+
+def get_requires_for_build_sdist(config_settings=None):
+    return _get_setuptools().get_requires_for_build_sdist(config_settings)
+
+
+def get_requires_for_build_editable(config_settings=None):
+    return _get_setuptools().get_requires_for_build_editable(config_settings)
+
+
+def prepare_metadata_for_build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
+    _stage_dashboard()
+    return _get_setuptools().prepare_metadata_for_build_wheel(wheel_directory, config_settings, metadata_directory)
+
+
+def prepare_metadata_for_build_editable(wheel_directory, config_settings=None, metadata_directory=None):
+    _stage_dashboard()
+    return _get_setuptools().prepare_metadata_for_build_editable(wheel_directory, config_settings, metadata_directory)

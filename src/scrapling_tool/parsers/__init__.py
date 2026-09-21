@@ -40,6 +40,7 @@ class ProfileExcerpt:
     avatar: str = ""
     recent_posts: list[PostExcerpt] = field(default_factory=list)
     source: str = ""  # which strategy produced this
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
 
 # -------- helpers --------
@@ -236,6 +237,7 @@ def _from_oembed(oembed: dict[str, Any], url: str) -> ProfileExcerpt | None:
         avatar=str(oembed.get("thumbnail_url") or "").strip(),
         recent_posts=[],
         source="oembed",
+        raw_data={"oembed": oembed},
     )
 
 
@@ -247,7 +249,7 @@ def _from_jsonld(
     # A "profile" page typically has a Person / Organization as the root
     # entity, with Article / SocialMediaPosting / VideoObject in the graph
     # or referenced via mainEntity.
-    profile = ProfileExcerpt(source="jsonld")
+    profile = ProfileExcerpt(source="jsonld", raw_data={"jsonld_blocks": blocks})
     for block in blocks:
         t = block.get("@type")
         if isinstance(t, list):
@@ -337,6 +339,7 @@ def _from_meta_tags(
         avatar=avatar,
         recent_posts=[],
         source="meta",
+        raw_data={"meta_tags": meta},
     )
 
 
@@ -392,6 +395,7 @@ def _parse_instagram_shared(
         display_name=user.get("full_name", "").strip(),
         avatar=user.get("profile_pic_url", "").strip(),
         source="shared_data",
+        raw_data={"shared_data": data},
     )
     edges = (
         user.get("edge_owner_to_timeline_media", {}).get("edges", [])
@@ -456,6 +460,7 @@ def _parse_universal_state(
                         or ""
                     ).strip(),
                     source="universal_state",
+                    raw_data={"universal_state": data},
                 )
             # Post shape
             for key in ("posts", "items", "videos", "tweets", "statuses", "entries"):
