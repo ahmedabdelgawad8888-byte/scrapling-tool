@@ -23,7 +23,7 @@ set "VENV_PY=%VENV%\Scripts\python.exe"
 set "VENV_SCRAPE=%VENV%\Scripts\scrape.exe"
 set "VENV_SERVE=%VENV%\Scripts\scraper-serve.exe"
 set "PORT=%SCRAPLING_PORT%"
-if "%PORT%"=="" set "PORT=8080"
+if "%PORT%"=="" set "PORT=7860"
 set "HOST=%SCRAPLING_HOST%"
 if "%HOST%"=="" set "HOST=127.0.0.1"
 set "OPEN_BROWSER=%SCRAPLING_BROWSER%"
@@ -40,7 +40,7 @@ if errorlevel 1 (
 REM --- one-time venv setup ------------------------------------------------------
 if not exist "%VENV_PY%" (
     echo [scrapling-tool] Creating venv at "%VENV%"...
-    uv venv --python 3.14 "%VENV%"
+    uv venv --python 3.12 "%VENV%"
     if errorlevel 1 exit /b 1
 )
 
